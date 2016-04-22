@@ -367,6 +367,15 @@ function tredlyfile_validate() {
         fi
     done
 
+    # if container group is set and startOrder isnt
+    if [[ -n "${_CONF_TREDLYFILE[containerGroup]}" ]] && [[ -z "${_CONF_TREDLYFILE[startOrder]}" ]]; then
+        exit_with_error "containerGroup is set but startOrder is not. Check Tredlyfile"
+    fi
+    # if containerGroup is set and replicate isnt
+    if [[ -n "${_CONF_TREDLYFILE[containerGroup]}" ]] && [[ -z "${_CONF_TREDLYFILE[replicate]}" ]]; then
+        exit_with_error "containerGroup is set but replicate is not. Check Tredlyfile"
+    fi
+
     if [[ ${#_CONF_TREDLYFILE_TCPIN[@]} -eq 0 ]] && [[ ${#_CONF_TREDLYFILE_UDPIN[@]} -eq 0 ]]; then
         exit_with_error "'tcpInPort' and 'udpInPort' are both missing or empty. At least one is required. Check Tredlyfile"
     fi
