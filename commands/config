@@ -1,0 +1,59 @@
+#!/usr/bin/env bash
+##########################################################################
+# Copyright 2016 Vuid Pty Ltd 
+# https://www.vuid.com
+#
+# This file is part of tredly-build.
+#
+# tredly-build is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# tredly-build is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with tredly-build.  If not, see <http://www.gnu.org/licenses/>.
+##########################################################################
+
+# commands require running as root
+cmn_assert_running_as_root
+
+# Sanity checks - make sure packages we need are installed
+check_for_zfs
+check_for_ipfw
+
+show_help "Available Commands:
+    container subnet
+    ---------
+    Description:
+        Configures the default subnet for containers.
+
+    Examples:
+        $(basename "$0") config container subnet 10.1.0.0/24
+"
+
+case "${_SUBCOMMANDS[0]}" in
+    container)
+        case "${_SUBCOMMANDS[1]}" in
+            subnet)
+                # check the number of args received
+                if [[ ${#_SUBCOMMANDS[@]} -gt 3 ]]; then
+                    exit_with_error "Too many arguments received."
+                fi
+                
+                # update the subnet config data
+                container_subnet "${_SUBCOMMANDS[2]}"
+            ;;
+            *)
+                exit_with_error "Unknown config container command '${_SUBCOMMANDS[1]}'"
+            ;;
+        esac
+    ;;
+    *)
+        exit_with_error "Unknown config command '${_SUBCOMMANDS[0]}'"
+    ;;
+esac

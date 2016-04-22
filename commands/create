@@ -1,0 +1,117 @@
+#!/usr/bin/env bash
+##########################################################################
+# Copyright 2016 Vuid Pty Ltd 
+# https://www.vuid.com
+#
+# This file is part of tredly-build.
+#
+# tredly-build is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# tredly-build is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with tredly-build.  If not, see <http://www.gnu.org/licenses/>.
+##########################################################################
+
+# commands require running as root
+cmn_assert_running_as_root
+
+# Sanity checks - make sure packages we need are installed
+check_for_zfs
+check_for_ipfw
+
+show_help "Available Commands:
+    container
+    ---------
+    Description:
+        Creates a container from the Tredlyfile in the current directory.
+    
+    Options:
+        --path=          Provide an alternate path to a Tredlyfile
+        --containerName= Override the container name
+        --partition=     Place this container within the given partition
+        --ip4_addr=      Manually specify the networking details for this 
+                         container. Format: <interface>|<ip4 address>/<cidr>
+                        
+    Examples:
+        $(basename "$0") create container
+        $(basename "$0") create container --containerName=mycontainer
+        $(basename "$0") create container --ip4_addr=em0|192.168.0.5/24
+        $(basename "$0") create container --partition=customer1
+
+    partition
+    ---------
+    Description:
+        Creates a partition with the given details. Partitions are used
+        to group containers and also to limit their resource usage.
+        
+    Options:
+        CPU=            Set CPU limit
+        HDD=            Set Disk limit
+        RAM=            Set RAM limit
+        ipv4whitelist=  Set new ipv4 whitelist (yet to be implemented)
+        
+    Examples:
+        $(basename "$0") create partiton customer1
+        $(basename "$0") create partiton customer2 CPU=1 RAM=1G
+        $(basename "$0") create partiton customer2 CPU=1 HDD=20G RAM=1G
+"
+
+case "${_SUBCOMMANDS[0]}" in
+    container)
+        # check the number of args received
+        if [[ ${#_SUBCOMMANDS[@]} -gt 2 ]]; then
+            exit_with_error "Too many arguments received."
+        fi
+        
+        # call the create method
+        container_create "false" "${_SUBCOMMANDS[1]}"
+
+    ;;
+    partition)
+        _partition_cpu=''
+        _partition_hdd=''
+        _partition_ram=''
+        
+        # ensure we received right number of args
+        if [[ ${#_SUBCOMMANDS[@]} -gt 5 ]]; then
+            exit_with_error "Too many arguments received."
+        fi
+    
+        # loop over the args received, populating the variables
+        for i in {2..4}; do
+            key="${_SUBCOMMANDS[${i}]%%=*}"
+            value="${_SUBCOMMANDS[${i}]#*=}"
+
+            # work out what it was that we received
+            case "${key}" in
+                CPU)
+                    _partition_cpu="${value}"
+                ;;
+                HDD)
+                    _partition_hdd="${value}"
+                ;;
+                RAM)
+                    _partition_ram="${value}"
+                ;;
+                *)
+                    if [[ -n "${key}" ]]; then
+                        exit_with_error "Invalid option \"${key}\""
+                    fi
+                ;;
+            esac
+        done
+        
+        # create the partition
+        partition_create "${_SUBCOMMANDS[1]}" "${_partition_hdd}" "${_partition_cpu}" "${_partition_ram}"
+    ;;
+    *)
+        exit_with_error "Unknown create command \"${_SUBCOMMANDS[0]}\""
+    ;;
+esac

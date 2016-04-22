@@ -1,0 +1,31 @@
+######
+# This is the common configuration which is loaded when tredly starts.
+
+required=containerName,startOrder,replicate
+
+## Interfaces
+wif=bridge0
+lif=bridge1
+
+# The physical interface that holds an ip address
+wifPhysical=bce0
+
+## The network and netmask for the lif, used for assigning ip addresses
+lifNetwork=10.0.0.0/16
+
+## Nameservers
+dns=10.0.255.254
+
+## HTTP Proxy Identifier
+httpproxy=10.0.255.254
+
+## TLD of your servers - used for DNS entries
+tld=example.com
+
+## Default route for your private container network
+vnetdefaultroute=10.0.255.254
+
+## Adds logging to the firewall rules
+## Set this to 'yes' to enable (case sensitive). Anything else is 
+## considered to be 'no'.
+firewallEnableLogging=yes
