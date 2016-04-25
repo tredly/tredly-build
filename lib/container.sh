@@ -1354,7 +1354,7 @@ function destroy_container() {
 
     # make sure the hosts epair exists before attempting to destroy it
     if  [[ "${_hostIface}" != '-' ]] && network_interface_exists "${_hostIface}"; then
-        e_note "Tearing down host networking"
+        e_note "Removing container networking"
         
         # remove hosts epair
         ifconfig ${_hostIface} destroy
@@ -1557,7 +1557,8 @@ function container_replace() {
 
     # end sanity checks
     if ! container_exists "${_old_container_uuid}"; then
-        e_note "Could not replace as the container to replace does not exist. Creating new container anyway."
+        e_header "Replacing Container ${_old_container_name}"
+        e_note "Container to replace does not exist"
     else
         # rename the old container
         e_header "Replacing Container ${_old_container_name} with ${_new_container_name}"
