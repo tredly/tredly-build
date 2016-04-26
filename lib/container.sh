@@ -962,10 +962,10 @@ function container_create() {
         # loop over the urls, getting their filenames and adding in to each of the http proxy files
         for i in "${!_CONF_TREDLYFILE_URL[@]}"; do
             # get the url and associated info
-            local _url="${_CONF_TREDLYFILE_URL[i]}"
-            local _urlCert="${_CONF_TREDLYFILE_URLCERT[i]}"
-            local _urlWebsocket="${_CONF_TREDLYFILE_URLWEBSOCKET[i]}"
-            local _urlMaxFileSize="${_CONF_TREDLYFILE_URLMAXFILESIZE[i]}"
+            local _url="${_CONF_TREDLYFILE_URL[${i}]}"
+            local _urlCert="${_CONF_TREDLYFILE_URLCERT[${i}]}"
+            local _urlWebsocket="${_CONF_TREDLYFILE_URLWEBSOCKET[${i}]}"
+            local _urlMaxFileSize="${_CONF_TREDLYFILE_URLMAXFILESIZE[${i}]}"
             
             _urlDomain=$(lcut ${_url} '/')
             
@@ -1000,8 +1000,33 @@ function container_create() {
                     e_verbose "Created upstream dir ${NGINX_UPSTREAM_DIR}"
                 fi
             fi
+            # add the url
+            nginx_add_url "${_url}" "${_urlCert}" "${_urlWebsocket}" "${_urlMaxFileSize}" "${_IP_ADDRESSES[0]}" "${uuid}" "${_container_dataset}" _CONF_TREDLYFILE_IP4WHITELIST[@] 
             
-            nginx_add_url "${_url}" "${_urlCert}" "${_urlWebsocket}" "${_urlMaxFileSize}" "${_IP_ADDRESSES[0]}" "${uuid}" "${_container_dataset}" _CONF_TREDLYFILE_IP4WHITELIST[@]
+            local _redirectToProto="http"
+            # work out if this is being redirected to a https location
+            if [[ -n "${_urlCert}" ]]; then
+                _redirectToProto="https"
+            fi
+            # and the redirects to it
+            IFS=' '
+            n=1
+            local _redirectUrlCert
+            for _redirectUrl in ${_CONF_TREDLYFILE_URLREDIRECT[$(( ${i} + 1 ))]}; do
+                # extract the cert from the array and the space separated string
+                _redirectUrlCert=$( echo "${_CONF_TREDLYFILE_URLREDIRECTCERT[$(( ${i} + 1 ))]}" | cut -d ' ' -f ${n} )
+                
+                # set the url cert as blank if it was set to null
+                if [[ "${_redirectUrlCert}" == 'null' ]]; then
+                    _redirectUrlCert=''
+                fi
+                nginx_add_redirect_url "${_redirectUrl}" "${_redirectToProto}://${_url}" "${_redirectUrlCert}"
+                
+                # register the redirect url within zfs
+                zfs_append_custom_array "${_container_dataset}" "${ZFS_PROP_ROOT}.redirect_url" "${_redirectUrl}"
+                
+                n=$(( ${n} + 1 ))
+            done
         done
         
         # reload nginx config
@@ -1160,6 +1185,7 @@ function destroy_container() {
     
     # and arrays
     IFS=$'\n' local _urls=($( zfs_get_custom_array "${_container_dataset}" "${ZFS_PROP_ROOT}.url" ))
+    IFS=$'\n' local _redirectUrls=($( zfs_get_custom_array "${_container_dataset}" "${ZFS_PROP_ROOT}.redirect_url" ))
     IFS=$'\n' local _nginxServerNameFiles=($( zfs_get_custom_array "${_container_dataset}" "${ZFS_PROP_ROOT}.nginx_servername" ))
     IFS=$'\n' local _nginxUpstreamFiles=($( zfs_get_custom_array "${_container_dataset}" "${ZFS_PROP_ROOT}.nginx_upstream" ))
     IFS=$'\n' local _layer4ProxyTCP=($( zfs_get_custom_array "${_container_dataset}" "${ZFS_PROP_ROOT}.layer4proxytcp" ))
@@ -1243,30 +1269,17 @@ function destroy_container() {
                         # get the contents of the block
                         local _locationBlock=$( get_data_between_strings "location ${_urlDirectory} {" "}" "$( cat "${_nginxServerNameDir}/${_file}" )" )
 
-                        # if it is a redirect block then check if the redirection for this is still necessary
-                        if [[ "${_locationBlock}" =~ 'return 301 https://$host$request_uri;' ]]; then
 
-                            local _httpsFile="https-$(nginx_format_filename "${_domain}")"
+                        # check if there are other containers using this url
+                        if [[ $( zfs get -r -H -o name,property,value all "${ZFS_TREDLY_PARTITIONS_DATASET}" | grep "${ZFS_PROP_ROOT}.url" | \
+                            grep -v "${ZFS_TREDLY_PARTITIONS_DATASET}/${_partitionName}/${TREDLY_CONTAINER_DIR_NAME}/${uuid}" | \
+                            grep "${_url}" | wc -l ) -eq 0 ]]; then
 
-                            local _locationBlock=$( get_data_between_strings "location ${_urlDirectory} {" "}" "$( cat "${_nginxServerNameDir}/${_httpsFile}" 2> /dev/null )" )
-
-                            if [[ -z "${_locationBlock}" ]]; then
-                                # remove the block
-                                delete_data_from_file_between_strings_inclusive "location ${_urlDirectory} {" "}" "${_nginxServerNameDir}/${_file}"
-                            fi
-
+                            # remove the block
+                            delete_data_from_file_between_strings_inclusive "location ${_urlDirectory} {" "}" "${_nginxServerNameDir}/${_file}"
                         else
-                            # check if there are other containers using this url
-                            if [[ $( zfs get -r -H -o name,property,value all "${ZFS_TREDLY_PARTITIONS_DATASET}" | grep "${ZFS_PROP_ROOT}.url" | \
-                                grep -v "${ZFS_TREDLY_PARTITIONS_DATASET}/${_partitionName}/${TREDLY_CONTAINER_DIR_NAME}/${uuid}" | \
-                                grep "${_url}" | wc -l ) -eq 0 ]]; then
-
-                                # remove the block
-                                delete_data_from_file_between_strings_inclusive "location ${_urlDirectory} {" "}" "${_nginxServerNameDir}/${_file}"
-                            else
-                                # other containers are using this url so remove any reference to this containers access file
-                                remove_lines_from_file "${_nginxServerNameDir}/${_file}" "$( regex_escape "include ${_nginxAccessFileDir}/${uuid}")" "false"
-                            fi
+                            # other containers are using this url so remove any reference to this containers access file
+                            remove_lines_from_file "${_nginxServerNameDir}/${_file}" "$( regex_escape "include ${_nginxAccessFileDir}/${uuid}")" "false"
                         fi
 
                         # flag nginx to be reloaded
@@ -1279,9 +1292,69 @@ function destroy_container() {
                         fi
                     fi
                 done
+                
             fi
         done
     fi
+    
+    # now remove any redirect urls
+    local _redirectUrl
+    # loop over the redirect urls
+    for _redirectUrl in ${_redirectUrls[@]}; do
+        # remove the protocol
+        local _redirectUrlTransformed=$( rcut "${_redirectUrl}" '://' )
+        # extract the directory part
+        if string_contains_char "${_redirectUrlTransformed}" '/'; then
+            local _urlProtocol=$(lcut "${_redirectUrl}" '://' )
+            local _urlDomain=$(lcut "${_redirectUrlTransformed}" '/' )
+            local _urlDirectory="/$(rcut "${_redirectUrlTransformed}" '/')"
+        else
+            local _urlProtocol=$(lcut "${_redirectUrl}" '://' )
+            local _urlDomain="${_redirectUrlTransformed}"
+            local _urlDirectory='/'
+        fi
+        
+        local _file=$( nginx_format_filename "${_urlProtocol}://${_urlDomain}" )
+
+        # get the contents of the block
+        local _locationBlock=$( get_data_between_strings "location ${_urlDirectory} {" "}" "$( cat "${_nginxServerNameDir}/${_file}" )" )
+
+        # if it is a redirect block then check if the redirection for this is still necessary
+        if [[ "${_locationBlock}" =~ 'return 301 http' ]]; then
+            # extract the redirection
+            local _redirectTo=$( echo "${_locationBlock}" | awk '{print $3}' | tr -d '\n')
+            # get rid of the semicolon
+            _redirectTo=$( rtrim "${_redirectTo}" ';' )
+            # and any trailing slash
+            _redirectTo=$( rtrim "${_redirectTo}" '/' )
+            # format it into a filename
+            local _redirectToFile=$( nginx_format_filename "${_redirectTo}" )
+
+            # if the destination file doesnt exist then clean up this definition
+            if [[ ! -f "${_nginxServerNameDir}/${_redirectToFile}" ]]; then
+                # remove the block
+                delete_data_from_file_between_strings_inclusive "location ${_urlDirectory} {" "}" "${_nginxServerNameDir}/${_file}"
+            else
+                # get the location block for the destination URL
+                local _locationBlock=$( get_data_between_strings "location ${_urlDirectory} {" "}" "$( cat "${_nginxServerNameDir}/${_redirectToFile}" 2> /dev/null )" )
+
+                # check if its blank
+                if [[ -z "${_locationBlock}" ]]; then
+                    # remove the block
+                    delete_data_from_file_between_strings_inclusive "location ${_urlDirectory} {" "}" "${_nginxServerNameDir}/${_file}"
+                fi
+            fi
+        fi
+
+        # flag nginx to be reloaded
+        _reloadNginx="true"
+        # if this file no longer contains location defs then delete it
+        if [[ $( cat "${_nginxServerNameDir}/${_file}" | grep 'location ' | wc -l ) -eq 0 ]]; then
+            # no location defs, go ahead and delete the file
+            e_verbose "No location defs found, deleting ${serverNameFullpath}..."
+            rm -f "${_nginxServerNameDir}/${_file}"
+        fi
+    done
     
     # clean up the access file if it exists
     if [[ -f "${_nginxAccessFileDir}/$( nginx_format_filename "${uuid}" )" ]]; then
@@ -1354,7 +1427,7 @@ function destroy_container() {
 
     # make sure the hosts epair exists before attempting to destroy it
     if  [[ "${_hostIface}" != '-' ]] && network_interface_exists "${_hostIface}"; then
-        e_note "Tearing down host networking"
+        e_note "Removing container networking"
         
         # remove hosts epair
         ifconfig ${_hostIface} destroy
@@ -1557,7 +1630,8 @@ function container_replace() {
 
     # end sanity checks
     if ! container_exists "${_old_container_uuid}"; then
-        e_note "Could not replace as the container to replace does not exist. Creating new container anyway."
+        e_header "Replacing Container ${_old_container_name}"
+        e_note "Container to replace does not exist"
     else
         # rename the old container
         e_header "Replacing Container ${_old_container_name} with ${_new_container_name}"
