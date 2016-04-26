@@ -33,6 +33,8 @@ declare -a _CONF_TREDLYFILE_URL
 declare -a _CONF_TREDLYFILE_URLCERT
 declare -a _CONF_TREDLYFILE_URLWEBSOCKET
 declare -a _CONF_TREDLYFILE_URLMAXFILESIZE
+declare -a _CONF_TREDLYFILE_URLREDIRECT
+declare -a _CONF_TREDLYFILE_URLREDIRECTCERT
 declare -a _CONF_TREDLYFILE_TECHOPTIONS
 declare -a _CONF_TREDLYFILE_STARTUP
 declare -a _CONF_TREDLYFILE_SHUTDOWN
@@ -165,6 +167,8 @@ function tredlyfile_parse() {
     _CONF_TREDLYFILE_URLCERT=()
     _CONF_TREDLYFILE_URLWEBSOCKET=()
     _CONF_TREDLYFILE_URLMAXFILESIZE=()
+    _CONF_TREDLYFILE_URLREDIRECT=()
+    _CONF_TREDLYFILE_URLREDIRECTCERT=()
     _CONF_TREDLYFILE_TECHOPTIONS=()
     _CONF_TREDLYFILE_STARTUP=()
     _CONF_TREDLYFILE_SHUTDOWN=()
@@ -190,24 +194,27 @@ function tredlyfile_parse() {
 
             # strip any whitespace
             local strippedValue=$(strip_whitespace "${value}")
-
+            local arrayKey
+            # extract data from the tredly definition
+            [[ $key =~ (.*)([[:digit:]]+)(.*)([[:digit:]]+)(.*) ]] && arrayKey="${BASH_REMATCH[2]}"
+            
             # do different things based off certain commands
             case "${key}" in
-                url)
+                url[1-999])
                     # add it to the array if it actually contained data
                     if [[ -n "${strippedValue}" ]]; then
-                        _CONF_TREDLYFILE_URL+=("${value}")
+                        _CONF_TREDLYFILE_URL[${arrayKey}]="${value}"
                     fi
                     ;;
-                urlCert)
+                url[1-999]Cert)
                     # add it to the array
-                    _CONF_TREDLYFILE_URLCERT+=("${value}")
+                    _CONF_TREDLYFILE_URLCERT[${arrayKey}]="${value}"
                     ;;
-                urlWebsocket)
+                url[1-999]Websocket)
                     # add it to the array
-                    _CONF_TREDLYFILE_URLWEBSOCKET+=("${value}")
+                    _CONF_TREDLYFILE_URLWEBSOCKET[${arrayKey}]="${value}"
                     ;;
-                urlMaxFileSize)
+                url[1-999]MaxFileSize)
                     # validate it
                     if [[ -n "${value}" ]]; then
                         unit="${value: -1}"
@@ -220,13 +227,39 @@ function tredlyfile_parse() {
                         fi
                         # allow a max of 2gb and default of 1mb
                         if [[ "${unit}" == "m" ]] && [[ "${unitValue}" -gt "2048" ]]; then
-                            _CONF_TREDLYFILE_URLMAXFILESIZE+=("2048m")
+                            _CONF_TREDLYFILE_URLMAXFILESIZE[${arrayKey}]="2048m"
                         elif [[ "${unit}" == "m" ]] && [[ "${unitValue}" -le "2048" ]]; then
-                            _CONF_TREDLYFILE_URLMAXFILESIZE+=("${unitValue}${unit}")
+                            _CONF_TREDLYFILE_URLMAXFILESIZE[${arrayKey}]="${unitValue}${unit}"
                         else
                             # default to 1mb
-                            _CONF_TREDLYFILE_URLMAXFILESIZE+=("1m")
+                            _CONF_TREDLYFILE_URLMAXFILESIZE[${arrayKey}]="1m"
                         fi
+                    fi
+                    ;;
+                url[1-999]Redirect[1-999])
+                    # we can have multiple urlredirects per url so handle that with space separated string since space is encoded to %20 in urls
+                    if [[ -n "${_CONF_TREDLYFILE_URLREDIRECT[${arrayKey}]}" ]]; then
+                        # concatenate the urls
+                        _CONF_TREDLYFILE_URLREDIRECT[${arrayKey}]="${_CONF_TREDLYFILE_URLREDIRECT[${arrayKey}]} ${value}"
+                    else
+                        # add it to the array
+                        _CONF_TREDLYFILE_URLREDIRECT[${arrayKey}]="${value}"
+                    fi
+                    ;;
+                url[1-999]Redirect[1-999]Cert)
+                    # if the value is blank then set the value to "null" so that the numbering within the string is correct
+                    # and so we can tell that this has no associated cert
+                    if [[ -z "${value}" ]]; then
+                        value="null"
+                    fi
+
+                    # we can have multiple urlredirects per url so handle that with space separated string since space is encoded to %20 in urls
+                    if [[ -n "${_CONF_TREDLYFILE_URLREDIRECTCERT[${arrayKey}]}" ]]; then
+                        # concatenate the urls
+                        _CONF_TREDLYFILE_URLREDIRECTCERT[${arrayKey}]="${_CONF_TREDLYFILE_URLREDIRECTCERT[${arrayKey}]} ${value}"
+                    else
+                        # add it to the array
+                        _CONF_TREDLYFILE_URLREDIRECTCERT[${arrayKey}]="${value}"
                     fi
                     ;;
                 tcpInPort)
@@ -366,6 +399,15 @@ function tredlyfile_validate() {
             exit_with_error "'${p}' is missing or empty and is required. Check Tredlyfile"
         fi
     done
+
+    # if container group is set and startOrder isnt
+    if [[ -n "${_CONF_TREDLYFILE[containerGroup]}" ]] && [[ -z "${_CONF_TREDLYFILE[startOrder]}" ]]; then
+        exit_with_error "containerGroup is set but startOrder is not. Check Tredlyfile"
+    fi
+    # if containerGroup is set and replicate isnt
+    if [[ -n "${_CONF_TREDLYFILE[containerGroup]}" ]] && [[ -z "${_CONF_TREDLYFILE[replicate]}" ]]; then
+        exit_with_error "containerGroup is set but replicate is not. Check Tredlyfile"
+    fi
 
     if [[ ${#_CONF_TREDLYFILE_TCPIN[@]} -eq 0 ]] && [[ ${#_CONF_TREDLYFILE_UDPIN[@]} -eq 0 ]]; then
         exit_with_error "'tcpInPort' and 'udpInPort' are both missing or empty. At least one is required. Check Tredlyfile"
