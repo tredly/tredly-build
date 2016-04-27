@@ -61,9 +61,9 @@ function find_jail_id() {
 
     if [[ $jid =~ ^[[:space:]]*([0-9]+) ]]; then
         echo "${BASH_REMATCH[1]}"
-        return $E_SUCCESS
+        return ${E_SUCCESS}
     else
-        return $E_ERROR
+        return ${E_ERROR}
     fi
 }
 
@@ -605,7 +605,37 @@ function container_create() {
         exit_with_error "Tredlyfile was invalid at ${_CONTAINER_CWD}"
     fi
     
+    # make sure any sslcerts for layer 7 proxy actually exist
+    local _cert _certList
+    # Check URL certs
+    for _cert in ${_CONF_TREDLYFILE_URLCERT[@]}; do
+        if [[ ! -f ${NGINX_SSLCONFIG_DIR}/${_cert} ]]; then
+            exit_with_error "Could not find SSL Certificate ${_cert} for URL within ${NGINX_SSLCONFIG_DIR}"
+        fi
+    done
     
+    local _i _n
+    local -a _urlRedirects
+    local -a _urlRedirectCerts
+
+    # check redirect certs
+    for _i in ${!_CONF_TREDLYFILE_URLREDIRECTCERT[@]}; do
+        IFS=' '
+        # get an array of the redirects and certs for this url
+        IFS=' ' local -a _urlRedirects=(${_CONF_TREDLYFILE_URLREDIRECT[${_i}]})
+        IFS=' ' local -a _urlRedirectsCerts=(${_CONF_TREDLYFILE_URLREDIRECTCERT[${_i}]})
+
+        for _n in ${!_urlRedirectsCerts[@]}; do
+            # make sure the equivalent redirect URL is https
+            if [[ "${_urlRedirects[${_n}]}" =~ ^https:// ]]; then
+                # ensure the certificate exists
+                if [[ ! -f ${NGINX_SSLCONFIG_DIR}/${_urlRedirectsCerts[${_n}]} ]]; then
+                    exit_with_error "Could not find SSL Certificate ${_urlRedirectsCerts[${_n}]} for URL Redirect within ${NGINX_SSLCONFIG_DIR}"
+                fi
+            fi
+        done
+    done
+
     #### END PRE FLIGHT CHECKS
 
     ## SET THE CONTAINERNAME
@@ -1233,8 +1263,10 @@ function container_create() {
             # and the redirects to it
             IFS=' '
             n=1
+
             local _redirectUrlCert
             for _redirectUrl in ${_CONF_TREDLYFILE_URLREDIRECT[$(( ${i} + 1 ))]}; do
+
                 # extract the cert from the array and the space separated string
                 _redirectUrlCert=$( echo "${_CONF_TREDLYFILE_URLREDIRECTCERT[$(( ${i} + 1 ))]}" | cut -d ' ' -f ${n} )
                 
@@ -1242,6 +1274,7 @@ function container_create() {
                 if [[ "${_redirectUrlCert}" == 'null' ]]; then
                     _redirectUrlCert=''
                 fi
+                
                 nginx_add_redirect_url "${_redirectUrl}" "${_redirectToProto}://${_url}" "${_redirectUrlCert}"
                 
                 # register the redirect url within zfs
@@ -1249,6 +1282,7 @@ function container_create() {
                 
                 n=$(( ${n} + 1 ))
             done
+
         done
         
         # reload nginx config
@@ -1521,6 +1555,7 @@ function destroy_container() {
     
     # now remove any redirect urls
     local _redirectUrl
+
     # loop over the redirect urls
     for _redirectUrl in ${_redirectUrls[@]}; do
         # remove the protocol
@@ -1577,7 +1612,7 @@ function destroy_container() {
             rm -f "${_nginxServerNameDir}/${_file}"
         fi
     done
-    
+
     # clean up the access file if it exists
     if [[ -f "${_nginxAccessFileDir}/$( nginx_format_filename "${uuid}" )" ]]; then
         rm -f "${_nginxAccessFileDir}/${uuid}"

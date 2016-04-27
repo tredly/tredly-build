@@ -70,7 +70,7 @@ function common_conf_validate() {
         esac
     done
 
-    return $E_SUCCESS
+    return ${E_SUCCESS}
 }
 
 ## Reads conf/{context}.conf, parsing it and storing each key/value pair
@@ -92,7 +92,7 @@ function common_conf_parse() {
 
     if [ ! -e "${_TREDLY_DIR_CONF}/${context}.conf" ]; then
         e_verbose "No configuration found for \`${context}\`. Skipping."
-        return $E_SUCCESS
+        return ${E_SUCCESS}
     fi
     
     # empty our arrays
@@ -131,7 +131,7 @@ function common_conf_parse() {
         fi
     done < "${_TREDLY_DIR_CONF}/${context}.conf"
 
-    return $E_SUCCESS
+    return ${E_SUCCESS}
 }
 
 ## Reads TredlyFile in directory provided, parsing it and storing each key/value pair
@@ -155,7 +155,7 @@ function tredlyfile_parse() {
 
     if [ ! -f "${tredlyFile}" ]; then
         # error if the file doesnt exist, exiting the function gracefully
-        return $E_ERROR
+        return ${E_ERROR}
     fi
 
     # empty our arrays
@@ -252,7 +252,6 @@ function tredlyfile_parse() {
                     if [[ -z "${value}" ]]; then
                         value="null"
                     fi
-
                     # we can have multiple urlredirects per url so handle that with space separated string since space is encoded to %20 in urls
                     if [[ -n "${_CONF_TREDLYFILE_URLREDIRECTCERT[${arrayKey}]}" ]]; then
                         # concatenate the urls
@@ -375,7 +374,7 @@ function tredlyfile_parse() {
         tredlyfile_validate
     fi
 
-    return $E_SUCCESS
+    return ${E_SUCCESS}
 
 }
 
@@ -409,9 +408,29 @@ function tredlyfile_validate() {
         exit_with_error "containerGroup is set but replicate is not. Check Tredlyfile"
     fi
 
+    # make sure one of tcpinports or udpinports is set
     if [[ ${#_CONF_TREDLYFILE_TCPIN[@]} -eq 0 ]] && [[ ${#_CONF_TREDLYFILE_UDPIN[@]} -eq 0 ]]; then
         exit_with_error "'tcpInPort' and 'udpInPort' are both missing or empty. At least one is required. Check Tredlyfile"
     fi
+    
+    # Ensure that each urlredirect has its own certificate
+    local _i
+    local _redirectUrl
+    local -a _redirectUrls
+    local -a _redirectCerts
+    # loop over each url
+    for _i in ${!_CONF_TREDLYFILE_URLREDIRECT[@]}; do
+        # and each redirect for this url
+        IFS=' ' _redirectUrls=(${_CONF_TREDLYFILE_URLREDIRECT[${_i}]})
+        IFS=' ' _redirectCerts=(${_CONF_TREDLYFILE_URLREDIRECTCERT[${_i}]})
+        
+        IFS=' '
+        # compare array lengths
+        if [[ ${#_redirectUrls[@]} != ${#_redirectCerts[@]} ]]; then
+            exit_with_error "url1: number of redirect urls does not match number of redirect certificates. If you are redirecting a HTTP URL, please include a blank definition."
+        fi
+        
+    done
     
     # make sure that a mount point is specified if persistent storage is selected
     if [[ -n "${_CONF_TREDLYFILE[persistentStorageUUID]}" ]] && ! array_contains_substring _CONF_TREDLYFILE_STARTUP[@] "^persistentMountPoint="; then
@@ -437,5 +456,5 @@ function tredlyfile_validate() {
         done
     fi
 
-    return $E_SUCCESS
+    return ${E_SUCCESS}
 }
