@@ -554,9 +554,9 @@ function string_contains_char() {
     local _char="${2}"
     
     if echo "${_input}" | grep -q "${_char}"; then
-        return $E_SUCCESS
+        return ${E_SUCCESS}
     else
-        return $E_ERROR
+        return ${E_ERROR}
     fi
 }
 

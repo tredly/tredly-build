@@ -287,12 +287,230 @@ function container_started() {
     if [[ -n "${_output}" ]]; then
         # its up
         echo "true"
-        return $E_SUCCESS
+        return ${E_SUCCESS}
     fi
 
     # default behaviour
     echo "false"
-    return $E_ERROR
+    return ${E_ERROR}
+}
+
+# modifies the resource limits placed upon a container
+function container_modify() {
+    local _uuid="${1}"
+    local _maxHdd="${2}"
+    local _maxCpu="${3}"
+    local _maxRam="${4}"
+    local _ipv4Whitelist="${5}"
+    
+    local _exitCode=${E_SUCCESS}
+    local _functionExitCode=${E_SUCCESS}
+    
+    #####
+    # Pre flight checks
+    
+    # ensure the container is started before attempting to change resource limits
+    if [[ $( container_started "${_uuid}" ) != "true" ]]; then
+        exit_with_error "Container ${_uuid} does not exist"
+    fi
+    
+    # find the partition this container is on
+    local _partitionName=$( get_container_partition "${_uuid}" )
+    
+    if [[ -z "${_partitionName}" ]]; then
+        exit_with_error "Could not find the partition for container ${_uuid}"
+    fi
+    
+    # ensure received units are correct
+    if [[ -n "${_maxHdd}" ]]; then
+        if ! is_valid_size_unit "${_maxHdd}" "m,g"; then
+            exit_with_error "Invalid HDD specification: ${_maxHdd}. Please use the format HDD=<size><unit>, eg HDD=1G."
+        fi
+    fi
+    if [[ -n "${_maxCpu}" ]]; then
+        if ! is_int "${_maxCpu}"; then
+            exit_with_error "Invalid CPU specification: ${_maxCpu}. Please use the format CPU=<int>, eg CPU=1"
+        fi
+    fi
+    if [[ -n "${_maxRam}" ]]; then
+        if ! is_valid_size_unit "${_maxRam}" "m,g"; then
+            exit_with_error "Invalid RAM specification: ${_maxRam}. Please use the format RAM=<size><unit>, eg RAM=1G."
+        fi
+    fi
+    
+    # End pre flight checks
+
+    # form the dataset string
+    local _containerDataset="${ZFS_TREDLY_PARTITIONS_DATASET}/${_partitionName}/${TREDLY_CONTAINER_DIR_NAME}/${_uuid}"
+    
+    # grab the container name
+    local _containerName=$( zfs_get_property "${_containerDataset}" "${ZFS_PROP_ROOT}:containername" )
+    
+    e_header "Modifying existing container ${_containerName}"
+    
+    # set ZFS quota
+    if [[ -n "${_maxHdd}" ]]; then
+        e_note "Modifying HDD"
+        if zfs_set_property ${_containerDataset} "quota" "${_maxHdd}"; then
+            e_success "Success"
+        else
+            _exitCode=${E_ERROR}
+            _functionExitCode=${E_ERROR}
+            e_error "Failed"
+        fi
+    fi
+
+    # set max ram
+    if [[ -n "${_maxRam}" ]]; then
+        e_note "Modifying RAM"
+        rctl -a jail:trd-${_uuid}:memoryuse:deny=${_maxRam}
+        # check exit code
+        if [[ $? -eq 0 ]]; then
+            # rctl succeeded, so set ZFS property
+            if zfs_set_property ${_containerDataset} "${ZFS_PROP_ROOT}:maxram" "${_maxRam}"; then
+                e_success "Success"
+            else
+                e_error "Failed"
+                _exitCode=${E_ERROR}
+                _functionExitCode=${E_ERROR}
+            fi
+        else
+            _exitCode=${E_ERROR}
+            _functionExitCode=${E_ERROR}
+            e_error "Failed"
+        fi
+    fi
+
+    # set max cpu
+    if [[ -n "${_maxCpu}" ]]; then
+        e_note "Modifying CPU"
+        rctl -a jail:trd-${_uuid}:pcpu:deny=${_maxCpu}
+        # check exit code
+        if [[ $? -eq 0 ]]; then
+            # rctl succeeded, so set ZFS property
+            if zfs_set_property ${_containerDataset} "${ZFS_PROP_ROOT}:maxcpu" "${_maxCpu}"; then
+                e_success "Success"
+            else
+                e_error "Failed"
+                _exitCode=${E_ERROR}
+                _functionExitCode=${E_ERROR}
+            fi
+        else
+            _exitCode=${E_ERROR}
+            e_error "Failed"
+        fi
+    fi
+    
+    # apply ip4 whitelisting
+    _exitCode=${E_SUCCESS}
+    if [[ -n "${_ipv4Whitelist}" ]]; then
+        # set up nginx access file name and path
+        local _accessFileName=$( nginx_format_filename "${_uuid}" )
+        local _accessFilePath="${NGINX_ACCESSFILE_DIR}/${_accessFileName}"
+        
+        # check if it was a clear command
+        if [[ "${_ipv4Whitelist}" == "clear" ]]; then
+            e_note "Clearing whitelist from layer 4"
+            
+            if ipfw_delete_table "${_uuid}" "${CONTAINER_IPFW_WL_TABLE_CONTAINER}"; then
+                e_success "Success"
+            else
+                e_error "Failed"
+            fi
+            
+            e_note "Clearing whitelist from layer 7"
+            if [[ -f "${_accessFilePath}" ]]; then
+                if nginx_clear_access_file "${_accessFilePath}"; then
+                    e_success "Success"
+                else
+                    e_error "Failed"
+                fi
+            fi
+            
+        else
+            _exitCode=${E_SUCCESS}
+            e_note "Applying whitelist to layer 4"
+            # convert the whitelist into an array
+            local -a _whitelistArray
+            # check if there was more than 1 value
+            if string_contains_char "${_ipv4Whitelist}" ","; then
+                IFS=',' read -ra _whitelistArray <<< "${_ipv4Whitelist}"
+            else
+                _whitelistArray+=("${_ipv4Whitelist}")
+            fi
+            
+            # delete the containers whitelist table first
+            ipfw_delete_table "${_uuid}" "${CONTAINER_IPFW_WL_TABLE_CONTAINER}"
+            
+            # Set the whitelist
+            local _ip4wl
+            for _ip4wl in ${_whitelistArray[@]}; do
+                # make sure its a valid network address
+                # clean up any whitespace
+                _ip4wl=$( ltrim "${_ip4wl}" " " )
+                _ip4wl=$( rtrim "${_ip4wl}" " " )
+
+                # extract the elements
+                local _ip4Whitelist _cidrWhitelist
+                IFS=/ read -r _ip4Whitelist _cidrWhitelist <<< "${_ip4wl}"
+                
+                # if cidr whitelist is empty then assume a host and set to 32
+                if [[ -z "${_cidrWhitelist}" ]]; then
+                    _cidrWhitelist=32
+                fi
+                
+                # make sure the whitelist is a valid ip
+                if is_valid_ip4 "${_ip4Whitelist}" && is_valid_cidr "${_cidrWhitelist}"; then
+                    # add it to the table
+                    ipfw_add_table_member "${_uuid}" "${CONTAINER_IPFW_WL_TABLE_CONTAINER}" "${_ip4Whitelist}/${_cidrWhitelist}"
+                    
+                    _exitCode=$(( ${_exitCode} && $? ))
+                else
+                    _exitCode=${E_ERROR}
+                fi
+            done
+            
+            if [[ ${_exitCode} -eq 0 ]]; then
+                e_success "Success"
+                _exitCode=$(( ${_exitCode} && $? ))
+            else
+                e_error "Failed"
+                _functionExitCode=${E_ERROR}
+            fi
+            
+            
+            _exitCode=${E_SUCCESS}
+            e_note "Applying whitelist to layer 7"
+            
+            # remove the old access file
+            if [[ -f "${_accessFilePath}" ]]; then
+                nginx_clear_access_file "${_accessFilePath}"
+                _exitCode=$(( ${_exitCode} && $? ))
+            fi
+            
+            # recreate the file
+            nginx_create_access_file "${_accessFilePath}" _whitelistArray[@]
+            
+            _exitCode=$(( ${_exitCode} && $? ))
+            
+            if [[ $? -eq 0 ]]; then
+                e_success "Success"
+            else
+                e_error "Failed"
+                _functionExitCode=${E_ERROR}
+            fi
+        fi
+        
+        # reload the layer 7 proxy
+        e_note "Reloading layer 7 proxy"
+        if nginx_reload; then
+            e_success "Success"
+        else
+            e_error "Failed"
+        fi
+    fi
+    
+    return ${_functionExitCode}
 }
 
 ## function to create a container
@@ -704,31 +922,35 @@ function container_create() {
             # set the partition whitelist table up in this new container
             ipfw_container_set_partition_whitelist "${uuid}" "${_partitionName}"
             
+            # Set the default rules for the container whitelist. If there are no ips within the table then the 
+            # rule will be ignored
+            ipfw_open_port "${uuid}" "in" "tcp" "${VNET_CONTAINER_IFACE_NAME}" "'table(3)'" "${_ip4}" "${tcpInPorts}"
+            ipfw_open_port "${uuid}" "in" "udp" "${VNET_CONTAINER_IFACE_NAME}" "'table(3)'" "${_ip4}" "${udpInPorts}"
+            
             # if we were given a list of ip addresses to whitelist then add them in
             if [[ "${#_CONF_TREDLYFILE_IP4WHITELIST[@]}" -gt 0 ]]; then
+
+                # loop over the whitelist from the tredlyfile
                 for _ip4Whitelist in ${_CONF_TREDLYFILE_IP4WHITELIST[@]}; do
                     # clean up any whitespace
                     _ip4Whitelist=$( ltrim "${_ip4Whitelist}" " " )
                     _ip4Whitelist=$( rtrim "${_ip4Whitelist}" " " )
 
-                    # split out the ip address and cidr
                     # extract the elements
                     IFS=/ read -r _ip4Whitelist _cidrWhitelist <<< "${_ip4Whitelist}"
-
+                    
                     # if cidr whitelist is empty then assume a host and set to 32
                     if [[ -z "${_cidrWhitelist}" ]]; then
                         _cidrWhitelist=32
                     fi
-
+                    
                     # make sure that we dont proxy internal ip addresses and that the whitelist is a valid ip
-                    if is_valid_ip4 "${_ip4Whitelist}" && \
-                       is_valid_cidr "${_cidrWhitelist}"; then
+                    if is_valid_ip4 "${_ip4Whitelist}" && is_valid_cidr "${_cidrWhitelist}"; then
                         
-                        # allow communication in from the specified ip
-                        ipfw_open_port "${uuid}" "in" "tcp" "${VNET_CONTAINER_IFACE_NAME}" "${_ip4Whitelist}/${_cidrWhitelist}" "${_ip4}" "${tcpInPorts}"
-                        _exitCode=$(( $? & ${_exitCode} ))
-                        ipfw_open_port "${uuid}" "in" "udp" "${VNET_CONTAINER_IFACE_NAME}" "${_ip4Whitelist}/${_cidrWhitelist}" "${_ip4}" "${udpInPorts}"
-                        _exitCode=$(( $? & ${_exitCode} ))
+                        # add it to the table
+                        if ! ipfw_add_table_member "${uuid}" "${CONTAINER_IPFW_WL_TABLE_CONTAINER}" "${_ip4Whitelist}/${_cidrWhitelist}"; then
+                            e_error "Failed to add container ip4whitelist member ${_ip4Whitelist}/${_cidrWhitelist}"
+                        fi
                     else
                         e_verbose "Skipping invalid whitelisted ip address ${_ip4Whitelist}/${_cidrWhitelist}"
                     fi

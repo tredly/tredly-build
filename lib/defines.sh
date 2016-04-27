@@ -72,9 +72,19 @@ declare TREDLY_ONSTOP_SCRIPT="/etc/rc.onstop"
 declare IPFW_SCRIPT="/usr/local/etc/ipfw.rules"
 declare IPFW_FORWARDS="/usr/local/etc/ipfw.portforwards"
 
+# The table numbers within the host
+declare IPFW_TABLE_PUBLIC_IPS="1"
+declare IPFW_TABLE_PUBLIC_EPAIRS="2"
+
 # Main IPFW rules within containers
 declare CONTAINER_IPFW_SCRIPT="/usr/local/etc/ipfw.rules"
 declare CONTAINER_IPFW_PARTITION_SCRIPT="/usr/local/etc/ipfw.partition"
+
+# the table numbers within the container for each whitelist
+declare CONTAINER_IPFW_WL_TABLE_CONTAINERGROUP="1"
+declare CONTAINER_IPFW_WL_TABLE_PARTITION="2"
+declare CONTAINER_IPFW_WL_TABLE_CONTAINER="3"
+
 
 ## what to rename the interface to within the container
 declare VNET_CONTAINER_IFACE_NAME="vnet0"

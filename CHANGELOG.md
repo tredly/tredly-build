@@ -7,6 +7,8 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 - Added this CHANGELOG.md file
 - Added CONTRIBUTING.md guidelines for contribution
 - Implemented urlRedirect= for URLs
+- Implemented ability to change container resource limits/whitelist
+  on the fly
 
 ## 0.9.0 - 2016-04-21
 #### Added

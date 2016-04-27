@@ -21,18 +21,9 @@
 
 # Reloads Nginx
 function nginx_reload() {
-    local _jid="${1}"
-    local _exitCode
     service nginx reload > /dev/null 2>&1
     
-    _exitCode=$?
-    
-    if [[ ${_exitCode} -ne 0 ]]; then
-        e_error "Failed to reload HTTP proxy"
-    else
-         e_verbose "Reloaded HTTP proxy" 
-    fi
-    return ${_exitCode}
+    return $?
 }
 
 # Creates a server file for nginx
@@ -212,9 +203,22 @@ function nginx_create_access_file() {
         fi
     } > "${_accessFile}"
     
-    return $E_SUCCESS
+    return ${E_SUCCESS}
 }
 
+# clears out an access file
+function nginx_clear_access_file() {
+    local _accessFile="${1}"
+    
+    if [[ -f "${_accessFile}" ]]; then
+        echo '' > "${_accessFile}"
+        
+        return $?
+    fi
+    
+    
+    return ${E_ERROR}
+}
 
 # formats a given filename into the correct format for nginx
 function nginx_format_filename() {
@@ -227,7 +231,7 @@ function nginx_format_filename() {
     filename=$(echo "${filename}" | tr '/' '-')
     
     echo "${filename}"
-    return $E_SUCCESS
+    return ${E_SUCCESS}
     
 }
 
@@ -238,10 +242,10 @@ function nginx_remove_include() {
     
     # remove the lines from the file
     if remove_lines_from_file "${_file}" "include ${_include};" "false"; then
-        return $E_SUCCESS
+        return ${E_SUCCESS}
     fi
     
-    return $E_ERROR
+    return ${E_ERROR}
 }
 
 # sets up a url with given parameters
