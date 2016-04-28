@@ -70,7 +70,7 @@ declare TREDLY_ONSTOP_SCRIPT="/etc/rc.onstop"
 
 # IPFW Scripts
 declare IPFW_SCRIPT="/usr/local/etc/ipfw.rules"
-declare IPFW_FORWARDS="/usr/local/etc/ipfw.portforwards"
+declare IPFW_FORWARDS="/usr/local/etc/ipfw.layer4"
 
 # The table numbers within the host
 declare IPFW_TABLE_PUBLIC_IPS="1"
