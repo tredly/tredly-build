@@ -79,6 +79,8 @@ function container_start() {
     
     local _containerPath="${TREDLY_PARTITIONS_MOUNT}/${_partitionName}/${TREDLY_CONTAINER_DIR_NAME}/${_uuid}"
     
+    local _containerName=$(zfs_get_property ${_containerDataset} "${ZFS_PROP_ROOT}:containername")
+    
     # set the ip addresses in the zfs datasets
     if [[ -n "${_ip4}" ]]; then
         zfs_set_property "${_container_dataset}" "${ZFS_PROP_ROOT}:ip4_addr" "${_ip4}"
@@ -88,19 +90,26 @@ function container_start() {
         zfs_set_property "${_container_dataset}" "${ZFS_PROP_ROOT}:ip6_addr" "${_ip6}"
     fi
     
+    # extract info from ip4
+    local _ip=$( extractFromIP4Addr "${_ip4}" "ip4" )
+    local _cidr=$( extractFromIP4Addr "${_ip4}" "cidr" )
+    
     # set up resolv.conf
     local -a _dnsServers
     IFS=$'\n' _dnsServers=($( zfs_get_custom_array "${_containerDataset}" "${ZFS_PROP_ROOT}.dns"))
     
     local _domainName=$(zfs_get_property ${_containerDataset} "${ZFS_PROP_ROOT}:domainname")
     
-    if [[ -n "${_domainName}" ]]; then
+    if [[ -n "${_domainName}" ]] && [[ "${_domainName}" != '-' ]]; then
         echo "search ${_domainName}" > "${_containerPath}/root/etc/resolv.conf"
     fi
     
     for _dns in "${_dnsServers[@]}"; do
         echo "nameserver ${_dns};" >> "${_containerPath}/root/etc/resolv.conf"
     done
+    
+    # add self into /etc/hosts
+    echo "${_ip} ${_containerName}.${_domainName}" >> "${_containerPath}/root/etc/hosts"
     
     # apply devfs rulesets
     devfs -m ${_containerPath}/root/dev rule -s $(zfs_get_property ${_containerDataset} "${ZFS_PROP_ROOT}:devfs_ruleset") applyset
@@ -142,10 +151,6 @@ function container_start() {
         allow.dying \
         exec.consolelog="${TREDLY_LOG_MOUNT}/${_uuid}-console" \
         persist
-
-    # extract info from ip4
-    local _ip=$( extractFromIP4Addr "${_ip4}" "ip4" )
-    local _cidr=$( extractFromIP4Addr "${_ip4}" "cidr" )
     
     # set up the vnet interface
     local _hostIF=$( ifconfig epair create )
@@ -779,7 +784,7 @@ function container_create() {
     zfs_set_property "${_container_dataset}" "${ZFS_PROP_ROOT}:ip4_saddrsel" "1"
 
     # set properties for this container
-    zfs_set_property "${_container_dataset}" "${ZFS_PROP_ROOT}:domainname" "${_CONF_TREDLYFILE[tld]}"
+    zfs_set_property "${_container_dataset}" "${ZFS_PROP_ROOT}:domainname" "${_partitionName}.${_CONF_COMMON[tld]}"
     zfs_set_property "${_container_dataset}" "${ZFS_PROP_ROOT}:buildepoch" "${_startEpoch}"
     zfs_set_property "${_container_dataset}" "${ZFS_PROP_ROOT}:containername" "${_container_name}"
     zfs_set_property "${_container_dataset}" "${ZFS_PROP_ROOT}:containergroupname" "${_CONF_TREDLYFILE[containerGroup]}"
