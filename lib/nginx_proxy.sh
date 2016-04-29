@@ -354,7 +354,6 @@ function nginx_add_url() {
         nginx_add_to_upstream_block "${NGINX_UPSTREAM_DIR}/http-${_upstreamFilename}" "${_ip4}" "80" "http-${_upstreamFilename}"
         # include this file in the dataset for destruction
         zfs_append_custom_array "${_container_dataset}" "${ZFS_PROP_ROOT}.nginx_upstream" "http-${_upstreamFilename}"
-        set +x
         #####################################
         # SET UP THE HTTP SERVER_NAME FILE
 
