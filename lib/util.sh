@@ -446,8 +446,12 @@ function add_line_to_file_between_strings_if_not_exists() {
     # check if it  exists between those strings
     if [[ -z "${searchedDataBetween}"  ]]; then
         # not found so add it in
-        $(add_line_to_file_after_string "${_data}" "${_startNeedle}" "${_file}")
+        add_line_to_file_after_string "${_data}" "${_startNeedle}" "${_file}"
+        
+        return $?
     fi
+    
+    return ${E_SUCCESS}
 }
 
 
@@ -550,9 +554,9 @@ function string_contains_char() {
     local _char="${2}"
     
     if echo "${_input}" | grep -q "${_char}"; then
-        return $E_SUCCESS
+        return ${E_SUCCESS}
     else
-        return $E_ERROR
+        return ${E_ERROR}
     fi
 }
 

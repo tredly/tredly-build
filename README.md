@@ -1,6 +1,6 @@
 # Tredly
-Version 0.9.0
-Apr 21 2016
+Version 0.10.0
+Apr 29 2016
 
 This is a software package to simplify the usage and management of containers within Unix. You can find out more information about Tredly at **[http://tredly.com](http://tredly.com)**
 

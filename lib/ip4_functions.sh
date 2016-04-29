@@ -29,15 +29,15 @@ function is_private_ip4() {
 
     # check for private ranges
     if [[ i1 -eq 10 ]]; then
-        return $E_SUCCESS
+        return ${E_SUCCESS}
     elif [[ i1 -eq 172 ]]; then
         if [[ i2 -ge 16 ]] && [[ i2 -le 31 ]]; then
-            return $E_SUCCESS
+            return ${E_SUCCESS}
         fi
     elif [[ i1 -eq 192 ]] && [[ i2 -eq 168 ]]; then
-        return $E_SUCCESS
+        return ${E_SUCCESS}
     fi
-    return $E_ERROR
+    return ${E_ERROR}
 }
 
 # randomly generates a port number and checks to see if it is in use
@@ -86,7 +86,7 @@ function find_available_ip_address() {
     while [[ -z "$newIP" ]]; do
         nextaddr=$( get_ip4_random_address "${network}" "${cidr}" )
         
-        if [[ $? -eq $E_FATAL ]]; then
+        if [[ $? -eq ${E_FATAL} ]]; then
             exit_with_error "IP address pool exhausted!"
         fi
 
@@ -101,7 +101,7 @@ function find_available_ip_address() {
     done
     
     echo "$newIP"
-    return $E_SUCCESS
+    return ${E_SUCCESS}
 }
 
 ## Uses ifconfig and to obtain the ip address(es) for a given network interface
@@ -188,7 +188,7 @@ function get_ip4_next_address() {
                 
                 if [[ "$o1" -gt 255 ]]; then
                     echo ""
-                    return $E_FATAL;
+                    return ${E_FATAL}
                 fi
             fi
         fi
@@ -199,11 +199,11 @@ function get_ip4_next_address() {
     # make sure we're not going to output the broadcast address
     if [[ "${newIP}" != "${broadcast}" ]]; then
         echo "$newIP"
-        return $E_SUCCESS;
+        return ${E_SUCCESS}
     fi
 
     echo ""
-    return $E_FATAL
+    return ${E_FATAL}
 }
 
 # given an ip4, finds the last usable ip4 address in the network
@@ -221,7 +221,7 @@ function get_last_usable_ip4_in_network() {
     b4=$(( b4 - 1 ))
 
     printf "%d.%d.%d.%d" "${b1}" "${b2}" "${b3}" "${b4}"
-    return $E_SUCCESS
+    return ${E_SUCCESS}
 }
 
 # Returns a random address from a given network and cidr
@@ -234,7 +234,7 @@ function get_ip4_random_address() {
 
     if [[ ${cidr} -eq 32 ]]; then
         echo "${network}"
-        return $E_SUCCESS
+        return ${E_SUCCESS}
     fi
 
     local n1 n2 n3 n4
@@ -264,11 +264,11 @@ function get_ip4_random_address() {
     # make sure we're not going to output the broadcast address or network address
     if [[ "${newIP}" != "${broadcast}" ]] && [[ "${newIP}" != "${network}" ]]; then
         echo "$newIP"
-        return $E_SUCCESS;
+        return ${E_SUCCESS}
     fi
 
     echo ""
-    return $E_FATAL;
+    return ${E_FATAL}
 }
 
 # Converts a netmask to a cidr
@@ -278,7 +278,7 @@ function netmask2cidr() {
    set -- 0^^^128^192^224^240^248^252^254^ $(( (${#1} - ${#x})*2 )) ${x%%.*}
    x=${1%%$3*}
    echo $(( $2 + (${#x}/4) ))
-   return $E_SUCCESS
+   return ${E_SUCCESS}
 }
 
 # takes a cidr (in the form of 16,24,32 etc) and outputs its equivalent netmask
