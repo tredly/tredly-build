@@ -288,10 +288,10 @@ function nginx_add_url() {
         #####################################
         # SET UP THE HTTPS UPSTREAM FILE
         # check if the https upstream file exists
-        if [[ ! -f "${NGINX_UPSTREAM_DIR}/https-${_filename}" ]]; then
+        if [[ ! -f "${NGINX_UPSTREAM_DIR}/https-${_upstreamFilename}" ]]; then
             # create it
             if ! nginx_create_upstream_file "https-${_upstreamFilename}" "${NGINX_UPSTREAM_DIR}/https-${_upstreamFilename}"; then
-                e_error "Failed to create HTTP proxy upstream file ${NGINX_UPSTREAM_DIR}/https-${_filename}"
+                e_error "Failed to create HTTP proxy upstream file ${NGINX_UPSTREAM_DIR}/https-${_upstreamFilename}"
             fi
         fi
         
@@ -343,10 +343,10 @@ function nginx_add_url() {
         #####################################
         # SET UP THE HTTP UPSTREAM FILE
         # check if the https upstream file exists
-        if [[ ! -f "${NGINX_UPSTREAM_DIR}/http-${_filename}" ]]; then
+        if [[ ! -f "${NGINX_UPSTREAM_DIR}/http-${_upstreamFilename}" ]]; then
             # create it
             if ! nginx_create_upstream_file "http-${_upstreamFilename}" "${NGINX_UPSTREAM_DIR}/http-${_upstreamFilename}"; then
-                e_error "Failed to create HTTP proxy upstream file ${NGINX_UPSTREAM_DIR}/http-${_filename}"
+                e_error "Failed to create HTTP proxy upstream file ${NGINX_UPSTREAM_DIR}/http-${_upstreamFilename}"
             fi
         fi
         
@@ -354,7 +354,7 @@ function nginx_add_url() {
         nginx_add_to_upstream_block "${NGINX_UPSTREAM_DIR}/http-${_upstreamFilename}" "${_ip4}" "80" "http-${_upstreamFilename}"
         # include this file in the dataset for destruction
         zfs_append_custom_array "${_container_dataset}" "${ZFS_PROP_ROOT}.nginx_upstream" "http-${_upstreamFilename}"
-        
+        set +x
         #####################################
         # SET UP THE HTTP SERVER_NAME FILE
 
