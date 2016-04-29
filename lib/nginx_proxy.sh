@@ -151,10 +151,11 @@ function nginx_insert_location_data() {
 
     # check if this url is a websocket url and add in the relevant config
     if [[ "${_urlWebSocket}" == "yes" ]]; then
-        add_line_to_file_between_strings_if_not_exists "location ${_urlDirectory} {" "        proxy_http_version 1.1;" "}" "${_filePath}"
-        add_line_to_file_between_strings_if_not_exists "location ${_urlDirectory} {" '        proxy_set_header Upgrade $http_upgrade;' "}" "${_filePath}"
-        add_line_to_file_between_strings_if_not_exists "location ${_urlDirectory} {" '        proxy_set_header Connection "upgrade";' "}" "${_filePath}"
-        add_line_to_file_between_strings_if_not_exists "location ${_urlDirectory} {" "        proxy_read_timeout 600;" "}" "${_filePath}"
+        # include the websockets proxy file
+        add_line_to_file_between_strings_if_not_exists "location ${_urlDirectory} {" "        include proxy_pass/ws_wss;" "}" "${_filePath}"
+    else
+        # include the standard HTTP(S) proxy file
+        add_line_to_file_between_strings_if_not_exists "location ${_urlDirectory} {" "        include proxy_pass/http_https;" "}" "${_filePath}"
     fi
 
     # check if this url has a max file size setting
@@ -287,10 +288,10 @@ function nginx_add_url() {
         #####################################
         # SET UP THE HTTPS UPSTREAM FILE
         # check if the https upstream file exists
-        if [[ ! -f "${NGINX_UPSTREAM_DIR}/https-${_filename}" ]]; then
+        if [[ ! -f "${NGINX_UPSTREAM_DIR}/https-${_upstreamFilename}" ]]; then
             # create it
             if ! nginx_create_upstream_file "https-${_upstreamFilename}" "${NGINX_UPSTREAM_DIR}/https-${_upstreamFilename}"; then
-                e_error "Failed to create HTTP proxy upstream file ${NGINX_UPSTREAM_DIR}/https-${_filename}"
+                e_error "Failed to create HTTP proxy upstream file ${NGINX_UPSTREAM_DIR}/https-${_upstreamFilename}"
             fi
         fi
         
@@ -342,10 +343,10 @@ function nginx_add_url() {
         #####################################
         # SET UP THE HTTP UPSTREAM FILE
         # check if the https upstream file exists
-        if [[ ! -f "${NGINX_UPSTREAM_DIR}/http-${_filename}" ]]; then
+        if [[ ! -f "${NGINX_UPSTREAM_DIR}/http-${_upstreamFilename}" ]]; then
             # create it
             if ! nginx_create_upstream_file "http-${_upstreamFilename}" "${NGINX_UPSTREAM_DIR}/http-${_upstreamFilename}"; then
-                e_error "Failed to create HTTP proxy upstream file ${NGINX_UPSTREAM_DIR}/http-${_filename}"
+                e_error "Failed to create HTTP proxy upstream file ${NGINX_UPSTREAM_DIR}/http-${_upstreamFilename}"
             fi
         fi
         
@@ -353,7 +354,6 @@ function nginx_add_url() {
         nginx_add_to_upstream_block "${NGINX_UPSTREAM_DIR}/http-${_upstreamFilename}" "${_ip4}" "80" "http-${_upstreamFilename}"
         # include this file in the dataset for destruction
         zfs_append_custom_array "${_container_dataset}" "${ZFS_PROP_ROOT}.nginx_upstream" "http-${_upstreamFilename}"
-        
         #####################################
         # SET UP THE HTTP SERVER_NAME FILE
 
@@ -412,7 +412,7 @@ function nginx_add_redirect_url() {
         # no protocol received so error
         return ${E_ERROR}
     fi
-
+    
     # check if the url actually contained a /
     if string_contains_char "${_transformedRedirectFrom}" '/'; then
         _urlFromDomain=$(lcut ${_transformedRedirectFrom} '/')
@@ -454,7 +454,7 @@ function nginx_add_redirect_url() {
     fi
 
     # insert the redirect
-    if ! add_line_to_file_between_strings_if_not_exists "location ${_urlFromDirectory} {" "        return 301 ${_redirectTo};" "}" "${NGINX_SERVERNAME_DIR}/${_servernameFilename}"; then
+    if ! add_line_to_file_between_strings_if_not_exists "location ${_urlFromDirectory} {" "        return 301 ${_redirectTo}\$request_uri;" "}" "${NGINX_SERVERNAME_DIR}/${_servernameFilename}"; then
         return ${E_ERROR}
     fi
     
