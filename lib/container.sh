@@ -1004,7 +1004,19 @@ function container_create() {
                 _exitCode=$(( $? & ${_exitCode} ))
             fi
             
-            # allow out ports as specified - note that this is "in" on purpose- PF blocks on IN otherwise
+            # if user didn't request "any" out for tcp, then allow 80 (http), and 443 (https) out by default
+            if ! array_contains_substring _CONF_TREDLYFILE_TCPOUT[@] '^any$'; then
+                ipfw_open_port "${uuid}" "out" "tcp" "${VNET_CONTAINER_IFACE_NAME}" "${_ip4}" "any" "80"
+                _exitCode=$(( $? & ${_exitCode} ))
+                ipfw_open_port "${uuid}" "out" "tcp" "${VNET_CONTAINER_IFACE_NAME}" "${_ip4}" "any" "443"
+                _exitCode=$(( $? & ${_exitCode} ))
+            fi
+            # if user didn't request "any" out for udp, then allow 53 (dns) out by default
+            if ! array_contains_substring _CONF_TREDLYFILE_UDPOUT[@] '^any$'; then
+                ipfw_open_port "${uuid}" "out" "udp" "${VNET_CONTAINER_IFACE_NAME}" "${_ip4}" "any" "53"
+                _exitCode=$(( $? & ${_exitCode} ))
+            fi
+            # allow out ports as specified
             ipfw_open_port "${uuid}" "out" "tcp" "${VNET_CONTAINER_IFACE_NAME}" "${_ip4}" "any" "${tcpOutPorts}"
             _exitCode=$(( $? & ${_exitCode} ))
             ipfw_open_port "${uuid}" "out" "udp" "${VNET_CONTAINER_IFACE_NAME}" "${_ip4}" "any" "${udpOutPorts}"

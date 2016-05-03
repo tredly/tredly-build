@@ -563,8 +563,8 @@ function string_contains_char() {
 # Search an array for a given (sub)string
 function array_contains_substring() {
     declare -a _array=("${!1}")
-
     local _needle="${2}"
+    
     local e
     
     for e in "${_array[@]}"; do

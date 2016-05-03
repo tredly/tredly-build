@@ -369,6 +369,21 @@ function tredlyfile_parse() {
     if [[ -z "${_CONF_TREDLYFILE[maxRam]}" ]]; then
         _CONF_TREDLYFILE[maxRam]="unlimited"
     fi
+    
+    # check if we have set "any" for any outgoing ports, if so then get rid of the rest of the ports as they are redundant
+    if array_contains_substring _CONF_TREDLYFILE_TCPOUT[@] '^any$'; then
+        _CONF_TREDLYFILE_TCPOUT=("any")
+    fi
+    if array_contains_substring _CONF_TREDLYFILE_UDPOUT[@] '^any$'; then
+        _CONF_TREDLYFILE_UDPOUT=("any")
+    fi
+    if array_contains_substring _CONF_TREDLYFILE_TCPIN[@] '^any$'; then
+        _CONF_TREDLYFILE_TCPIN=("any")
+    fi
+    if array_contains_substring _CONF_TREDLYFILE_UDPIN[@] '^any$'; then
+        _CONF_TREDLYFILE_UDPIN=("any")
+    fi
+    
     ## Skip the validation if need be
     if [[ (-z "${2}") || ("${2}" = false) ]]; then
         tredlyfile_validate
@@ -429,13 +444,31 @@ function tredlyfile_validate() {
         if [[ ${#_redirectUrls[@]} != ${#_redirectCerts[@]} ]]; then
             exit_with_error "url1: number of redirect urls does not match number of redirect certificates. If you are redirecting a HTTP URL, please include a blank definition."
         fi
-        
     done
     
-    # make sure that a mount point is specified if persistent storage is selected
-    if [[ -n "${_CONF_TREDLYFILE[persistentStorageUUID]}" ]] && ! array_contains_substring _CONF_TREDLYFILE_STARTUP[@] "^persistentMountPoint="; then
-        exit_with_error "'persistentStorageUUID' is specified but no mount point specified. Please specify a mount point in your Tredlyfile."
+    # ensure that HTTP or HTTPS ports are open if user specified a URL
+    if [[ ${#_CONF_TREDLYFILE_URL[@]} -gt 0 ]]; then
+        # loop over the urls
+        for _i in ${!_CONF_TREDLYFILE_URL[@]}; do
+            # check HTTP only urls - if urlcert is blank and port 80 isnt open
+            if [[ -z "${_CONF_TREDLYFILE_URLCERT[${_i}]}" ]] && \
+               ! array_contains_substring _CONF_TREDLYFILE_TCPIN[@] '^80$' && \
+               ! array_contains_substring _CONF_TREDLYFILE_TCPIN[@] '^any$'; then
+                exit_with_error "HTTP URL ${_CONF_TREDLYFILE_URL[${_i}]} specified but TCP IN port 80 is not set. Please set tcpInPort=80 in your Tredlyfile"
+            fi
+            # check HTTPS urls - if urlcert is not blank and port 443 isnt open
+            if [[ -n "${_CONF_TREDLYFILE_URLCERT[${_i}]}" ]] && \
+               ! array_contains_substring _CONF_TREDLYFILE_TCPIN[@] '^443$' && \
+               ! array_contains_substring _CONF_TREDLYFILE_TCPIN[@] '^any$'; then
+                exit_with_error "HTTPS URL ${_CONF_TREDLYFILE_URL[${_i}]} specified but TCP IN port 443 is not set. Please set tcpInPort=443 in your Tredlyfile"
+            fi
+        done
     fi
+    
+    # make sure that a mount point is specified if persistent storage is selected
+    #if [[ -n "${_CONF_TREDLYFILE[persistentStorageUUID]}" ]] && ! array_contains_substring _CONF_TREDLYFILE_STARTUP[@] "^persistentMountPoint="; then
+        #exit_with_error "'persistentStorageUUID' is specified but no mount point specified. Please specify a mount point in your Tredlyfile."
+    #fi
 
     ## Check that all the src paths in "fileFolderMapping" exist
     if [[ -n "${_CONF_TREDLYFILE[fileFolderMapping]}" ]]; then
