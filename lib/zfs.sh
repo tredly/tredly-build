@@ -87,8 +87,7 @@ function zfs_get_custom_array() {
     local _property="${2}"
 
     # get the data
-    #local _existing=$( zfs get -H -o property,value all "${_dataset}" | grep "${_property}" | sed "s/^${_property}://" | sort -k 1 -n )
-    local _existing=$( zfs get -H -o property,value all "${_dataset}" | grep -F "${_property}" | sort -k 1 -n )
+    local _existing=$( zfs get -H -o property,value all "${_dataset}" | grep "^${_property}:" | sort -k 1 -n )
     if [[ -n "${_existing}" ]]; then
         echo "${_existing}" | awk '{print $2}'
     else

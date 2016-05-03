@@ -77,8 +77,7 @@ function list_containers() {
         local _buildEpoch=$( zfs_get_property "${_dataset}" "${ZFS_PROP_ROOT}:buildepoch" )
         local _containerVersion=$( zfs_get_property "${_dataset}" "${ZFS_PROP_ROOT}:containerversion" )
         local _containerGroupName=$( zfs_get_property "${_dataset}" "${ZFS_PROP_ROOT}:containergroupname" )
-        local _persistentStorageUUID=$( zfs_get_property "${_dataset}" "${ZFS_PROP_ROOT}:persistentstorageuuid" )
-        
+
         local _ip4_addr=$( zfs_get_property "${_dataset}" "${ZFS_PROP_ROOT}:ip4_addr" )
         local _ip4=$( extractFromIP4Addr "${_ip4_addr}" "ip4" )
         
@@ -114,9 +113,9 @@ function list_containers() {
         fi
         
         if [[ "${_printLine}" == "true" ]]; then
-            _containerString=$( echo "${_containerString}" ; printf "%s^%s^%s^%s^%s^%s^%s^%s\n" \
+            _containerString=$( echo "${_containerString}" ; printf "%s^%s^%s^%s^%s^%s^%s\n" \
                                                         "${_partition}" "${_containerGroupName}" "${_containerName}" "${_uuid}" \
-                                                        "${_ip4}" "${_persistentStorageUUID}" "${_state}" "${_builtAt}")
+                                                        "${_ip4}" "${_state}" "${_builtAt}")
         fi
     done
 
@@ -139,9 +138,6 @@ function list_containers() {
                            awk -F "^" '{print $5 " % " $0}' | \
                            sort -t. -n -k1,1 -k2,2 -k3,3 -k4,4 | sed 's/[^%]*% //' )
         ;;
-        persistent|persistentstorage)
-            _containerString=$( echo "${_containerString}" | sort -t^ -k 6 )
-        ;;
         state)
             _containerString=$( echo "${_containerString}" | sort -t^ -k 4 )
         ;;
@@ -163,7 +159,7 @@ function list_containers() {
     # echo out the data
     echo -e "--------------------"
     printf "\e[1m"
-    echo -e "Partition^ContainerGroup^ContainerName^UUID^IP4^PersistentStorage^State^Created\e[0m\e[39m\n${_containerString}" | column -ts^
+    echo -e "Partition^ContainerGroup^ContainerName^UUID^IP4^State^Created\e[0m\e[39m\n${_containerString}" | column -ts^
     # and the number of containerss
     echo -e "--------------------\n`ltrim "${_numContainers}"` containers listed."
 }

@@ -58,6 +58,7 @@ declare TREDLY_PTN_DATA_DIR_NAME="data"
 declare NGINX_BASE_DIR="/usr/local/etc/nginx"
 declare NGINX_UPSTREAM_DIR="${NGINX_BASE_DIR}/upstream"
 declare NGINX_SERVERNAME_DIR="${NGINX_BASE_DIR}/server_name"
+declare NGINX_SSL_DIR="${NGINX_BASE_DIR}/ssl"
 declare NGINX_SSLCONFIG_DIR="${NGINX_BASE_DIR}/sslconfig"
 declare NGINX_ACCESSFILE_DIR="${NGINX_BASE_DIR}/access"
 
