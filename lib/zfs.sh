@@ -75,10 +75,10 @@ function zfs_get_property() {
 
     if [[ $? -eq 0 ]]; then
         echo "${value}"
-        return $E_SUCCESS
+        return ${E_SUCCESS}
     fi
     
-    return $E_ERROR
+    return ${E_ERROR}
 }
 
 # returns a newline separated list of values from the zfs dataset in the correct order
@@ -87,8 +87,7 @@ function zfs_get_custom_array() {
     local _property="${2}"
 
     # get the data
-    #local _existing=$( zfs get -H -o property,value all "${_dataset}" | grep "${_property}" | sed "s/^${_property}://" | sort -k 1 -n )
-    local _existing=$( zfs get -H -o property,value all "${_dataset}" | grep -F "${_property}" | sort -k 1 -n )
+    local _existing=$( zfs get -H -o property,value all "${_dataset}" | grep "^${_property}:" | sort -k 1 -n )
     if [[ -n "${_existing}" ]]; then
         echo "${_existing}" | awk '{print $2}'
     else
@@ -110,7 +109,7 @@ function zfs_append_custom_array() {
     local i=0
     # make sure we have a value to set
     if [[ -z "${_value}" ]]; then
-        return $E_ERROR
+        return ${E_ERROR}
     fi
 
     # check any properties are set
@@ -122,7 +121,7 @@ function zfs_append_custom_array() {
             
             # if it exists then return
             if [[ ${_exists} -gt 0 ]]; then
-                return $E_SUCCESS
+                return ${E_SUCCESS}
             fi
         fi
         
@@ -169,7 +168,7 @@ function zfs_set_property() {
     
     # make sure we have a value to set
     if [[ -z "${_value}" ]]; then
-        return $E_ERROR
+        return ${E_ERROR}
     fi
     
     # set the property
@@ -188,7 +187,7 @@ function zfs_create_dataset() {
     # first check that the dataset doesnt already exist
     _datasetLines=$( zfs list | grep "^${_dataSet} " | wc -l )
     if [[ ${_datasetLines} -gt 0 ]]; then
-        return $E_ERROR
+        return ${E_ERROR}
     fi
     
     # create the zfs dataset and mount it
@@ -196,7 +195,7 @@ function zfs_create_dataset() {
     local _createExitCode=$?
     
     if [[ ${_createExitCode} -ne 0 ]]; then
-        return $E_ERROR
+        return ${E_ERROR}
     fi
     
     # now mount it
@@ -204,10 +203,10 @@ function zfs_create_dataset() {
     local _mountExitCode=$?
     
     if [[ ${_mountExitCode} -ne 0 ]]; then
-        return $E_ERROR
+        return ${E_ERROR}
     fi
     
-    return $E_SUCCESS
+    return ${E_SUCCESS}
 }
 
 # destroys a ZFS dataset
@@ -234,10 +233,10 @@ function zfs_mount_nullfs_in_jail() {
     mount -t nullfs "${_hostMountPoint}" "${_mountPoint}"
 
     if [[ $? -ne 0 ]]; then
-        return $E_ERROR
+        return ${E_ERROR}
     fi
 
-    return $E_SUCCESS
+    return ${E_SUCCESS}
 }
 
 # detaches a zfs nullfs mount from a given JID
@@ -248,10 +247,10 @@ function zfs_unmount_nullfs_in_jail() {
     umount -f "${_mountPoint}"
 
     if [[ $? -ne 0 ]]; then
-        return $E_ERROR
+        return ${E_ERROR}
     fi
     
-    return $E_SUCCESS
+    return ${E_SUCCESS}
 }
 
 # lists out all container datasets

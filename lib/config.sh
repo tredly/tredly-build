@@ -33,6 +33,8 @@ declare -a _CONF_TREDLYFILE_URL
 declare -a _CONF_TREDLYFILE_URLCERT
 declare -a _CONF_TREDLYFILE_URLWEBSOCKET
 declare -a _CONF_TREDLYFILE_URLMAXFILESIZE
+declare -a _CONF_TREDLYFILE_URLREDIRECT
+declare -a _CONF_TREDLYFILE_URLREDIRECTCERT
 declare -a _CONF_TREDLYFILE_TECHOPTIONS
 declare -a _CONF_TREDLYFILE_STARTUP
 declare -a _CONF_TREDLYFILE_SHUTDOWN
@@ -68,7 +70,7 @@ function common_conf_validate() {
         esac
     done
 
-    return $E_SUCCESS
+    return ${E_SUCCESS}
 }
 
 ## Reads conf/{context}.conf, parsing it and storing each key/value pair
@@ -90,7 +92,7 @@ function common_conf_parse() {
 
     if [ ! -e "${_TREDLY_DIR_CONF}/${context}.conf" ]; then
         e_verbose "No configuration found for \`${context}\`. Skipping."
-        return $E_SUCCESS
+        return ${E_SUCCESS}
     fi
     
     # empty our arrays
@@ -129,7 +131,7 @@ function common_conf_parse() {
         fi
     done < "${_TREDLY_DIR_CONF}/${context}.conf"
 
-    return $E_SUCCESS
+    return ${E_SUCCESS}
 }
 
 ## Reads TredlyFile in directory provided, parsing it and storing each key/value pair
@@ -153,7 +155,7 @@ function tredlyfile_parse() {
 
     if [ ! -f "${tredlyFile}" ]; then
         # error if the file doesnt exist, exiting the function gracefully
-        return $E_ERROR
+        return ${E_ERROR}
     fi
 
     # empty our arrays
@@ -165,6 +167,8 @@ function tredlyfile_parse() {
     _CONF_TREDLYFILE_URLCERT=()
     _CONF_TREDLYFILE_URLWEBSOCKET=()
     _CONF_TREDLYFILE_URLMAXFILESIZE=()
+    _CONF_TREDLYFILE_URLREDIRECT=()
+    _CONF_TREDLYFILE_URLREDIRECTCERT=()
     _CONF_TREDLYFILE_TECHOPTIONS=()
     _CONF_TREDLYFILE_STARTUP=()
     _CONF_TREDLYFILE_SHUTDOWN=()
@@ -190,24 +194,29 @@ function tredlyfile_parse() {
 
             # strip any whitespace
             local strippedValue=$(strip_whitespace "${value}")
+            local arrayKey=''
+            # extract relevant keys from the tredlyfile declaration
+            [[ ${key} =~ ^([a-zA-Z]+)([0-9]+) ]] && arrayKey="${BASH_REMATCH[2]}"
 
             # do different things based off certain commands
             case "${key}" in
-                url)
+                url[1-999])
+                    
                     # add it to the array if it actually contained data
                     if [[ -n "${strippedValue}" ]]; then
-                        _CONF_TREDLYFILE_URL+=("${value}")
+                        _CONF_TREDLYFILE_URL[${arrayKey}]="${value}"
                     fi
                     ;;
-                urlCert)
+                url[1-999]Cert)
                     # add it to the array
-                    _CONF_TREDLYFILE_URLCERT+=("${value}")
+                    _CONF_TREDLYFILE_URLCERT[${arrayKey}]="${value}"
                     ;;
-                urlWebsocket)
+                url[1-999]Websocket)
                     # add it to the array
-                    _CONF_TREDLYFILE_URLWEBSOCKET+=("${value}")
+                    _CONF_TREDLYFILE_URLWEBSOCKET[${arrayKey}]="${value}"
+                    
                     ;;
-                urlMaxFileSize)
+                url[1-999]MaxFileSize)
                     # validate it
                     if [[ -n "${value}" ]]; then
                         unit="${value: -1}"
@@ -220,13 +229,40 @@ function tredlyfile_parse() {
                         fi
                         # allow a max of 2gb and default of 1mb
                         if [[ "${unit}" == "m" ]] && [[ "${unitValue}" -gt "2048" ]]; then
-                            _CONF_TREDLYFILE_URLMAXFILESIZE+=("2048m")
+                            _CONF_TREDLYFILE_URLMAXFILESIZE[${arrayKey}]="2048m"
                         elif [[ "${unit}" == "m" ]] && [[ "${unitValue}" -le "2048" ]]; then
-                            _CONF_TREDLYFILE_URLMAXFILESIZE+=("${unitValue}${unit}")
+                            _CONF_TREDLYFILE_URLMAXFILESIZE[${arrayKey}]="${unitValue}${unit}"
                         else
                             # default to 1mb
-                            _CONF_TREDLYFILE_URLMAXFILESIZE+=("1m")
+                            _CONF_TREDLYFILE_URLMAXFILESIZE[${arrayKey}]="1m"
                         fi
+                    fi
+                    
+                    ;;
+                url[1-999]Redirect[1-999])
+                    # we can have multiple urlredirects per url so handle that with space separated string since space is encoded to %20 in urls
+                    if [[ -n "${_CONF_TREDLYFILE_URLREDIRECT[${arrayKey}]}" ]]; then
+                        # concatenate the urls
+                        _CONF_TREDLYFILE_URLREDIRECT[${arrayKey}]="${_CONF_TREDLYFILE_URLREDIRECT[${arrayKey}]} ${value}"
+                    else
+                        # add it to the array
+                        _CONF_TREDLYFILE_URLREDIRECT[${arrayKey}]="${value}"
+                    fi
+                    
+                    ;;
+                url[1-999]Redirect[1-999]Cert)
+                    # if the value is blank then set the value to "null" so that the numbering within the string is correct
+                    # and so we can tell that this has no associated cert
+                    if [[ -z "${value}" ]]; then
+                        value="null"
+                    fi
+                    # we can have multiple urlredirects per url so handle that with space separated string since space is encoded to %20 in urls
+                    if [[ -n "${_CONF_TREDLYFILE_URLREDIRECTCERT[${arrayKey}]}" ]]; then
+                        # concatenate the urls
+                        _CONF_TREDLYFILE_URLREDIRECTCERT[${arrayKey}]="${_CONF_TREDLYFILE_URLREDIRECTCERT[${arrayKey}]} ${value}"
+                    else
+                        # add it to the array
+                        _CONF_TREDLYFILE_URLREDIRECTCERT[${arrayKey}]="${value}"
                     fi
                     ;;
                 tcpInPort)
@@ -337,12 +373,27 @@ function tredlyfile_parse() {
     if [[ -z "${_CONF_TREDLYFILE[maxRam]}" ]]; then
         _CONF_TREDLYFILE[maxRam]="unlimited"
     fi
+    
+    # check if we have set "any" for any outgoing ports, if so then get rid of the rest of the ports as they are redundant
+    if array_contains_substring _CONF_TREDLYFILE_TCPOUT[@] '^any$'; then
+        _CONF_TREDLYFILE_TCPOUT=("any")
+    fi
+    if array_contains_substring _CONF_TREDLYFILE_UDPOUT[@] '^any$'; then
+        _CONF_TREDLYFILE_UDPOUT=("any")
+    fi
+    if array_contains_substring _CONF_TREDLYFILE_TCPIN[@] '^any$'; then
+        _CONF_TREDLYFILE_TCPIN=("any")
+    fi
+    if array_contains_substring _CONF_TREDLYFILE_UDPIN[@] '^any$'; then
+        _CONF_TREDLYFILE_UDPIN=("any")
+    fi
+    
     ## Skip the validation if need be
     if [[ (-z "${2}") || ("${2}" = false) ]]; then
         tredlyfile_validate
     fi
 
-    return $E_SUCCESS
+    return ${E_SUCCESS}
 
 }
 
@@ -376,14 +427,52 @@ function tredlyfile_validate() {
         exit_with_error "containerGroup is set but replicate is not. Check Tredlyfile"
     fi
 
+    # make sure one of tcpinports or udpinports is set
     if [[ ${#_CONF_TREDLYFILE_TCPIN[@]} -eq 0 ]] && [[ ${#_CONF_TREDLYFILE_UDPIN[@]} -eq 0 ]]; then
         exit_with_error "'tcpInPort' and 'udpInPort' are both missing or empty. At least one is required. Check Tredlyfile"
     fi
     
-    # make sure that a mount point is specified if persistent storage is selected
-    if [[ -n "${_CONF_TREDLYFILE[persistentStorageUUID]}" ]] && ! array_contains_substring _CONF_TREDLYFILE_STARTUP[@] "^persistentMountPoint="; then
-        exit_with_error "'persistentStorageUUID' is specified but no mount point specified. Please specify a mount point in your Tredlyfile."
+    # Ensure that each urlredirect has its own certificate
+    local _i
+    local _redirectUrl
+    local -a _redirectUrls
+    local -a _redirectCerts
+    # loop over each url
+    for _i in ${!_CONF_TREDLYFILE_URLREDIRECT[@]}; do
+        # and each redirect for this url
+        IFS=' ' _redirectUrls=(${_CONF_TREDLYFILE_URLREDIRECT[${_i}]})
+        IFS=' ' _redirectCerts=(${_CONF_TREDLYFILE_URLREDIRECTCERT[${_i}]})
+        
+        IFS=' '
+        # compare array lengths
+        if [[ ${#_redirectUrls[@]} != ${#_redirectCerts[@]} ]]; then
+            exit_with_error "url1: number of redirect urls does not match number of redirect certificates. If you are redirecting a HTTP URL, please include a blank definition."
+        fi
+    done
+    
+    # ensure that HTTP or HTTPS ports are open if user specified a URL
+    if [[ ${#_CONF_TREDLYFILE_URL[@]} -gt 0 ]]; then
+        # loop over the urls
+        for _i in ${!_CONF_TREDLYFILE_URL[@]}; do
+            # check HTTP only urls - if urlcert is blank and port 80 isnt open
+            if [[ -z "${_CONF_TREDLYFILE_URLCERT[${_i}]}" ]] && \
+               ! array_contains_substring _CONF_TREDLYFILE_TCPIN[@] '^80$' && \
+               ! array_contains_substring _CONF_TREDLYFILE_TCPIN[@] '^any$'; then
+                exit_with_error "HTTP URL ${_CONF_TREDLYFILE_URL[${_i}]} specified but TCP IN port 80 is not set. Please set tcpInPort=80 in your Tredlyfile"
+            fi
+            # check HTTPS urls - if urlcert is not blank and port 443 isnt open
+            if [[ -n "${_CONF_TREDLYFILE_URLCERT[${_i}]}" ]] && \
+               ! array_contains_substring _CONF_TREDLYFILE_TCPIN[@] '^443$' && \
+               ! array_contains_substring _CONF_TREDLYFILE_TCPIN[@] '^any$'; then
+                exit_with_error "HTTPS URL ${_CONF_TREDLYFILE_URL[${_i}]} specified but TCP IN port 443 is not set. Please set tcpInPort=443 in your Tredlyfile"
+            fi
+        done
     fi
+    
+    # make sure that a mount point is specified if persistent storage is selected
+    #if [[ -n "${_CONF_TREDLYFILE[persistentStorageUUID]}" ]] && ! array_contains_substring _CONF_TREDLYFILE_STARTUP[@] "^persistentMountPoint="; then
+        #exit_with_error "'persistentStorageUUID' is specified but no mount point specified. Please specify a mount point in your Tredlyfile."
+    #fi
 
     ## Check that all the src paths in "fileFolderMapping" exist
     if [[ -n "${_CONF_TREDLYFILE[fileFolderMapping]}" ]]; then
@@ -404,5 +493,5 @@ function tredlyfile_validate() {
         done
     fi
 
-    return $E_SUCCESS
+    return ${E_SUCCESS}
 }

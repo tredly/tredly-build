@@ -27,6 +27,22 @@ check_for_zfs
 check_for_ipfw
 
 show_help "Available Commands:
+    container
+    ---------
+    Description:
+        Modifies an existing container with the given options.
+    
+    Options:
+        CPU=            Set new CPU limit
+        HDD=            Set new disk limit
+        RAM=            Set new RAM limit
+        ipv4Whitelist=  Set new ipv4 whitelist
+        
+    Examples:
+        $(basename "$0") modify container x5jR3nK1 RAM=1G
+        $(basename "$0") modify container x5jR3nK1 CPU=1 HDD=20G RAM=1G
+        $(basename "$0") modify container x5jR3nK1 ipv4Whitelist="10.0.0.0/16,10.1.0.1"
+        
     partition
     ---------
     Description:
@@ -37,13 +53,13 @@ show_help "Available Commands:
         CPU=            Set new CPU limit
         HDD=            Set new disk limit
         RAM=            Set new RAM limit
-        ipv4whitelist=  Set new ipv4 whitelist (yet to be implemented)
+        ipv4Whitelist=  Set new ipv4 whitelist
         
     Examples:
-        $(basename "$0") modify partiton customer1
-        $(basename "$0") modify partiton customer1 paritionName=cust1 CPU=1 \
-        RAM=1G
-        $(basename "$0") modify partiton customer2 CPU=1 HDD=20G RAM=1G
+        $(basename "$0") modify partition customer1
+        $(basename "$0") modify partition customer1 paritionName=cust1 CPU=1 \
+        RAM=1G ipv4Whitelist="10.0.0.0/16,10.1.0.1"
+        $(basename "$0") modify partition customer2 CPU=1 HDD=20G RAM=1G ipv4Whitelist=clear
 "
 
 case "${_SUBCOMMANDS[0]}" in
@@ -54,6 +70,51 @@ case "${_SUBCOMMANDS[0]}" in
         fi
         
         init_select_default_release
+    ;;
+    container)
+        _maxCpu=''
+        _maxHdd=''
+        _maxRam=''
+        _ipv4Whitelist=''
+        
+        # ensure we received right number of args
+        if [[ ${#_SUBCOMMANDS[@]} -gt 6 ]]; then
+            exit_with_error "Too many arguments received."
+        fi
+        
+        # loop over the args received, populating the variables
+        for i in {2..5}; do
+            key="${_SUBCOMMANDS[${i}]%%=*}"
+            value="${_SUBCOMMANDS[${i}]#*=}"
+
+            # work out what it was that we received
+            case "${key}" in
+                CPU)
+                    _maxCpu="${value}"
+                ;;
+                HDD)
+                    _maxHdd="${value}"
+                ;;
+                RAM)
+                    _maxRam="${value}"
+                ;;
+                ipv4Whitelist)
+                    if [[ -z "${value}" ]]; then
+                        _ipv4Whitelist="clear"
+                    else
+                        _ipv4Whitelist="${value}"
+                    fi
+                ;;
+                *)
+                    if [[ -n "${key}" ]]; then
+                        exit_with_error "Invalid option \"${key}\""
+                    fi
+                ;;
+            esac
+        done
+        
+        # modify the container
+        container_modify "${_SUBCOMMANDS[1]}" "${_maxHdd}" "${_maxCpu}" "${_maxRam}" "${_ipv4Whitelist}"
     ;;
     partition)
         _partition_name=''
