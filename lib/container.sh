@@ -613,9 +613,10 @@ function container_create() {
     # make sure any sslcerts for layer 7 proxy actually exist
     local _cert _certList _src
 
-    # Check URL certs
-    for _cert in ${_CONF_TREDLYFILE_URLCERT[@]}; do
+    # Check that certs actually exist
+    for _cert in ${_CONF_TREDLYFILE_URLCERT[@]} ${_CONF_TREDLYFILE_URLREDIRECTCERT[@]}; do
         if [[ -n "${_cert}" ]]; then
+            
             # trim whitespace
             _cert=$(trim "${_cert}")
 
@@ -642,28 +643,7 @@ function container_create() {
             fi
         fi
     done
-    
-    local _i _n
-    local -a _urlRedirects
-    local -a _urlRedirectCerts
 
-    # check redirect certs
-    for _i in ${!_CONF_TREDLYFILE_URLREDIRECTCERT[@]}; do
-        IFS=' '
-        # get an array of the redirects and certs for this url
-        IFS=' ' local -a _urlRedirects=(${_CONF_TREDLYFILE_URLREDIRECT[${_i}]})
-        IFS=' ' local -a _urlRedirectsCerts=(${_CONF_TREDLYFILE_URLREDIRECTCERT[${_i}]})
-
-        for _n in ${!_urlRedirectsCerts[@]}; do
-            # make sure the equivalent redirect URL is https
-            if [[ "${_urlRedirects[${_n}]}" =~ ^https:// ]]; then
-                # ensure the certificate exists
-                if [[ ! -f ${NGINX_SSLCONFIG_DIR}/${_urlRedirectsCerts[${_n}]} ]]; then
-                    exit_with_error "Could not find SSL Certificate ${_urlRedirectsCerts[${_n}]} for URL Redirect within ${NGINX_SSLCONFIG_DIR}"
-                fi
-            fi
-        done
-    done
 
     #### END PRE FLIGHT CHECKS
 
