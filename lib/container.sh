@@ -611,11 +611,35 @@ function container_create() {
     fi
     
     # make sure any sslcerts for layer 7 proxy actually exist
-    local _cert _certList
+    local _cert _certList _src
+
     # Check URL certs
     for _cert in ${_CONF_TREDLYFILE_URLCERT[@]}; do
-        if [[ ! -f ${NGINX_SSLCONFIG_DIR}/${_cert} ]]; then
-            exit_with_error "Could not find SSL Certificate ${_cert} for URL within ${NGINX_SSLCONFIG_DIR}"
+        if [[ -n "${_cert}" ]]; then
+            # trim whitespace
+            _cert=$(trim "${_cert}")
+
+            # if first word of the source is "partition" then the file comes from the partition
+            if [[ "${_cert}" =~ ^partition/ ]]; then
+                local _certPath="$(rcut "${_cert}" "/" )"
+                _src="${TREDLY_PARTITIONS_MOUNT}/${_partitionName}/${TREDLY_PTN_DATA_DIR_NAME}/${_certPath}/"
+            else
+                # comes from container
+                _src="$(rtrim ${_CONTAINER_CWD} /)/${_cert}"
+            fi
+            
+            # make sure directory exists
+            if [[ ! -d "${_src}" ]]; then
+                exit_with_error "Could not find SSL Certificate ${_cert}"
+            fi
+            # make sure server.crt exists
+            if [[ ! -f "${_src}/server.crt" ]]; then
+                exit_with_error "Could not find SSL Certificate ${_cert}/server.crt"
+            fi
+            # make sure server.key exists
+            if [[ ! -f "${_src}/server.key" ]]; then
+                exit_with_error "Could not find SSL Key ${_cert}/server.key"
+            fi
         fi
     done
     
@@ -1004,7 +1028,19 @@ function container_create() {
                 _exitCode=$(( $? & ${_exitCode} ))
             fi
             
-            # allow out ports as specified - note that this is "in" on purpose- PF blocks on IN otherwise
+            # if user didn't request "any" out for tcp, then allow 80 (http), and 443 (https) out by default
+            if ! array_contains_substring _CONF_TREDLYFILE_TCPOUT[@] '^any$'; then
+                ipfw_open_port "${uuid}" "out" "tcp" "${VNET_CONTAINER_IFACE_NAME}" "${_ip4}" "any" "80"
+                _exitCode=$(( $? & ${_exitCode} ))
+                ipfw_open_port "${uuid}" "out" "tcp" "${VNET_CONTAINER_IFACE_NAME}" "${_ip4}" "any" "443"
+                _exitCode=$(( $? & ${_exitCode} ))
+            fi
+            # if user didn't request "any" out for udp, then allow 53 (dns) out by default
+            if ! array_contains_substring _CONF_TREDLYFILE_UDPOUT[@] '^any$'; then
+                ipfw_open_port "${uuid}" "out" "udp" "${VNET_CONTAINER_IFACE_NAME}" "${_ip4}" "any" "53"
+                _exitCode=$(( $? & ${_exitCode} ))
+            fi
+            # allow out ports as specified
             ipfw_open_port "${uuid}" "out" "tcp" "${VNET_CONTAINER_IFACE_NAME}" "${_ip4}" "any" "${tcpOutPorts}"
             _exitCode=$(( $? & ${_exitCode} ))
             ipfw_open_port "${uuid}" "out" "udp" "${VNET_CONTAINER_IFACE_NAME}" "${_ip4}" "any" "${udpOutPorts}"
@@ -1209,13 +1245,47 @@ function container_create() {
 
     ## HTTP PROXY/UNBOUND CONFIG
     if [[ ${#_CONF_TREDLYFILE_URL[@]} -gt 0 ]]; then
-        e_note "Configuring layer 7 Proxy (HTTP) for ${_container_name}"
         
         # include the current location of nginx files so that we can destroy cleanly
         zfs_set_property "${_container_dataset}" "${ZFS_PROP_ROOT}:nginx_upstream_dir" "${NGINX_UPSTREAM_DIR}"
         zfs_set_property "${_container_dataset}" "${ZFS_PROP_ROOT}:nginx_servername_dir" "${NGINX_SERVERNAME_DIR}"
         zfs_set_property "${_container_dataset}" "${ZFS_PROP_ROOT}:nginx_accessfile_dir" "${NGINX_ACCESSFILE_DIR}"
+        local src
         
+        # loop over the URLCERTs and install them
+        for _cert in ${_CONF_TREDLYFILE_URLCERT[@]}; do
+            if [[ -n "${_cert}" ]]; then
+                # trim whitespace
+                _cert=$(trim "${_cert}")
+                
+                e_note "Setting up SSL Cert \"${_cert}\" for layer 7 proxy"
+                nginx_copy_cert "${_cert}" "${_partitionName}"
+
+                if [[ $? -eq 0 ]]; then
+                    e_success "Success"
+                else
+                    e_error "Failed"
+                fi
+            fi
+        done
+        
+        # loop over the URLREDIRECTCERTs and install them
+        for _cert in ${_CONF_TREDLYFILE_URLREDIRECTCERT[@]}; do
+            if [[ -n "${_cert}" ]]; then
+                # trim whitespace
+                _cert=$(trim "${_cert}")
+                
+                e_note "Setting up Redirect SSL Cert \"${_cert}\" for layer 7 proxy"
+                nginx_copy_cert "${_cert}" "${_partitionName}"
+                
+                if [[ $? -eq 0 ]]; then
+                    e_success "Success"
+                else
+                    e_error "Failed"
+                fi
+            fi
+        done
+        e_note "Configuring layer 7 Proxy (HTTP) for ${_container_name}"
         # loop over the urls, getting their filenames and adding in to each of the http proxy files
         for i in "${!_CONF_TREDLYFILE_URL[@]}"; do
             # get the url and associated info
@@ -1224,6 +1294,10 @@ function container_create() {
             local _urlWebsocket="${_CONF_TREDLYFILE_URLWEBSOCKET[${i}]}"
             local _urlMaxFileSize="${_CONF_TREDLYFILE_URLMAXFILESIZE[${i}]}"
             
+            # trim urlcert down to the last dir name and add partition name so that partitions dont step on each others certs
+            if [[ -n "${_urlCert}" ]]; then
+                _urlCert="$(echo "${_urlCert}" | rev | cut -d '/' -f 1 | rev )"
+            fi
             _urlDomain=$(lcut ${_url} '/')
             
             _urlDirectory=''
@@ -1231,13 +1305,14 @@ function container_create() {
             if string_contains_char "${_url}" '/'; then
                 _urlDirectory=$(rcut ${_url} '/')
             fi
-
+            
             # remove any trailing or leading spaces
             url=$(ltrim "${_url}" ' ')
             url=$(rtrim "${_url}" ' ')
             
-            # add the url into zfs
+            # add the url and cert into zfs
             zfs_append_custom_array "${_container_dataset}" "${ZFS_PROP_ROOT}.url" "${_url}"
+            zfs_append_custom_array "${_container_dataset}" "${ZFS_PROP_ROOT}.url_cert" "${_urlCert}"
             
             # add the line in to the DNS config
             if unbound_insert_a_record "${_urlDomain}" "${_CONF_COMMON[httpproxy]}" "${uuid}"; then
@@ -1246,7 +1321,7 @@ function container_create() {
             else
                 e_error "Failed to insert DNS record for ${_urlDomain} ${_CONF_COMMON[httpproxy]}"
             fi
-
+            
             # create the directory if it doesnt already exist
             if [[ ! -d "${NGINX_UPSTREAM_DIR}" ]]; then
                 mkdir -p "${NGINX_UPSTREAM_DIR}"
@@ -1257,6 +1332,12 @@ function container_create() {
                     e_verbose "Created upstream dir ${NGINX_UPSTREAM_DIR}"
                 fi
             fi
+            
+            # append the partition name if the urlcert was set
+            if [[ -n "${_urlCert}" ]]; then
+                _urlCert="${_partitionName}/${_urlCert}"
+            fi
+            
             # add the url
             nginx_add_url "${_url}" "${_urlCert}" "${_urlWebsocket}" "${_urlMaxFileSize}" "${_IP_ADDRESSES[0]}" "${uuid}" "${_container_dataset}" _CONF_TREDLYFILE_IP4WHITELIST[@] 
             
@@ -1275,6 +1356,12 @@ function container_create() {
                 # extract the cert from the array and the space separated string
                 _redirectUrlCert=$( echo "${_CONF_TREDLYFILE_URLREDIRECTCERT[$(( ${i} + 1 ))]}" | cut -d ' ' -f ${n} )
                 
+                # trim urlcert down to the last dir name and add partition name so that partitions dont step on each others certs
+                if [[ -n "${_redirectUrlCert}" ]]; then
+                    # trim out the string until we have the last directory
+                    _redirectUrlCert="$(echo "${_redirectUrlCert}" | rev | cut -d '/' -f 1 | rev )"
+                fi
+                
                 # set the url cert as blank if it was set to null
                 if [[ "${_redirectUrlCert}" == 'null' ]]; then
                     _redirectUrlCert=''
@@ -1284,6 +1371,7 @@ function container_create() {
                 
                 # register the redirect url within zfs
                 zfs_append_custom_array "${_container_dataset}" "${ZFS_PROP_ROOT}.redirect_url" "${_redirectUrl}"
+                zfs_append_custom_array "${_container_dataset}" "${ZFS_PROP_ROOT}.redirect_url_cert" "${_redirectUrlCert}"
                 
                 n=$(( ${n} + 1 ))
             done
@@ -1445,12 +1533,14 @@ function destroy_container() {
     local _containerGroupName=$( zfs_get_property "${_container_dataset}" "${ZFS_PROP_ROOT}:containergroupname" )
     
     # and arrays
-    IFS=$'\n' local _urls=($( zfs_get_custom_array "${_container_dataset}" "${ZFS_PROP_ROOT}.url" ))
-    IFS=$'\n' local _redirectUrls=($( zfs_get_custom_array "${_container_dataset}" "${ZFS_PROP_ROOT}.redirect_url" ))
-    IFS=$'\n' local _nginxServerNameFiles=($( zfs_get_custom_array "${_container_dataset}" "${ZFS_PROP_ROOT}.nginx_servername" ))
-    IFS=$'\n' local _nginxUpstreamFiles=($( zfs_get_custom_array "${_container_dataset}" "${ZFS_PROP_ROOT}.nginx_upstream" ))
-    IFS=$'\n' local _layer4ProxyTCP=($( zfs_get_custom_array "${_container_dataset}" "${ZFS_PROP_ROOT}.layer4proxytcp" ))
-    IFS=$'\n' local _layer4ProxyUDP=($( zfs_get_custom_array "${_container_dataset}" "${ZFS_PROP_ROOT}.layer4proxyudp" ))
+    IFS=$'\n' local -a _urls=($( zfs_get_custom_array "${_container_dataset}" "${ZFS_PROP_ROOT}.url" ))
+    IFS=$'\n' local -a _urlCerts=($( zfs_get_custom_array "${_container_dataset}" "${ZFS_PROP_ROOT}.url_cert" ))
+    IFS=$'\n' local -a _redirectUrls=($( zfs_get_custom_array "${_container_dataset}" "${ZFS_PROP_ROOT}.redirect_url" ))
+    IFS=$'\n' local -a _redirectUrlCerts=($( zfs_get_custom_array "${_container_dataset}" "${ZFS_PROP_ROOT}.redirect_url_cert" ))
+    IFS=$'\n' local -a _nginxServerNameFiles=($( zfs_get_custom_array "${_container_dataset}" "${ZFS_PROP_ROOT}.nginx_servername" ))
+    IFS=$'\n' local -a _nginxUpstreamFiles=($( zfs_get_custom_array "${_container_dataset}" "${ZFS_PROP_ROOT}.nginx_upstream" ))
+    IFS=$'\n' local -a _layer4ProxyTCP=($( zfs_get_custom_array "${_container_dataset}" "${ZFS_PROP_ROOT}.layer4proxytcp" ))
+    IFS=$'\n' local -a _layer4ProxyUDP=($( zfs_get_custom_array "${_container_dataset}" "${ZFS_PROP_ROOT}.layer4proxyudp" ))
 
     # get the ip4 addresses
     if [[ -n "${ip4_addresses}" ]]; then
@@ -1529,7 +1619,6 @@ function destroy_container() {
 
                         # get the contents of the block
                         local _locationBlock=$( get_data_between_strings "location ${_urlDirectory} {" "}" "$( cat "${_nginxServerNameDir}/${_file}" )" )
-
 
                         # check if there are other containers using this url
                         if [[ $( zfs get -r -H -o name,property,value all "${ZFS_TREDLY_PARTITIONS_DATASET}" | grep "${ZFS_PROP_ROOT}.url" | \
@@ -1610,14 +1699,47 @@ function destroy_container() {
 
         # flag nginx to be reloaded
         _reloadNginx="true"
+
         # if this file no longer contains location defs then delete it
         if [[ $( cat "${_nginxServerNameDir}/${_file}" | grep 'location ' | wc -l ) -eq 0 ]]; then
             # no location defs, go ahead and delete the file
             e_verbose "No location defs found, deleting ${serverNameFullpath}..."
             rm -f "${_nginxServerNameDir}/${_file}"
         fi
+
     done
 
+    # Loop over this container's certs, checking if any other container is using them
+    local _cert=''
+    # combine the certificate arrays into a single array we can work with, and remove duplicates
+    local -a _combinedCertList=(`for item in "${_urlCerts[@]}" "${_redirectUrlCerts[@]}" ; do echo "${item}" ; done | sort -du`)
+    if [[ ${#_combinedCertList[@]} -gt 0 ]]; then
+        e_note "Cleaning up SSL Certificates"
+        
+        local _exitCode=0
+        for _cert in ${_combinedCertList[@]}; do
+            # check if this cert is in use by containers in this partition
+            local _urlCertInUse=$( zfs get -r -H -o value,name ${ZFS_PROP_ROOT}:url_cert ${ZFS_TREDLY_PARTITIONS_DATASET}/${_partitionName}/${TREDLY_CONTAINER_DIR_NAME} | grep -v "${TREDLY_CONTAINER_DIR_NAME}$" | awk '{print $1}' | grep "${_cert}" | wc -l )
+            local _urlRedirectCertInUse=$( zfs get -r -H -o value,name ${ZFS_PROP_ROOT}:redirect_url_cert ${ZFS_TREDLY_PARTITIONS_DATASET}/${_partitionName}/${TREDLY_CONTAINER_DIR_NAME} | grep -v "${TREDLY_CONTAINER_DIR_NAME}$"  | awk '{print $1}' | grep "${_cert}" | wc -l)
+
+            # if nothing was found then delete the cert from nginx
+            if [[ ${_urlCertInUse} -eq 0 ]] && [[ ${_urlRedirectCertInUse} -eq 0 ]]; then
+                rm -f "${NGINX_SSL_DIR}/${_partitionName}/${_cert}/server.crt"
+                _exitCode=$(( ${_exitCode} & $? ))
+                rm -f "${NGINX_SSL_DIR}/${_partitionName}/${_cert}/server.key"
+                _exitCode=$(( ${_exitCode} & $? ))
+                rmdir "${NGINX_SSL_DIR}/${_partitionName}/${_cert}"
+                _exitCode=$(( ${_exitCode} & $? ))
+            fi
+        done
+        
+        if [[ ${_exitCode} -eq 0 ]]; then
+            e_success "Success"
+        else
+            e_error "Failed"
+        fi
+    fi
+    
     # clean up the access file if it exists
     if [[ -f "${_nginxAccessFileDir}/$( nginx_format_filename "${uuid}" )" ]]; then
         rm -f "${_nginxAccessFileDir}/${uuid}"
@@ -1655,7 +1777,7 @@ function destroy_container() {
             e_error "Failed"
         fi
     fi
-
+    
     # Remove any layer 4 proxy ports
     local _exitCode=0
     if [[ ${#_layer4ProxyTCP[@]} -gt 0 ]] || [[ ${#_layer4ProxyUDP[@]} -gt 0 ]] ; then
@@ -1815,7 +1937,7 @@ function destroy_container() {
         # get the uptime of this container in seconds 
         _uptimeEpoch=$(( ${_endEpoch} - ${_buildEpoch} ))
         _containerUptime=$( show_time ${_uptimeEpoch} )
-    
+        
         _scriptTime=$(( ${_endEpoch} - ${_startEpoch} ))
         
         e_success "Container uptime: ${_containerUptime}"

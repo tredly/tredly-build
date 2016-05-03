@@ -32,13 +32,6 @@ function nginx_create_servername_file() {
     local _subdomain="${1}"
     local _filePath="${2}"
     local _certificate="${3}"
-
-    local _certificateLine=""
-    
-    # make sure the certificate exists or nginx will error
-    if [[ -n "${_certificate}" ]]; then
-        _certificateLine=""
-    fi
     
     # output the config to the file
     {
@@ -48,7 +41,10 @@ function nginx_create_servername_file() {
             echo "server {"
             echo "    listen ${_CONF_COMMON[httpproxy]}:443 ssl;"
             echo "    server_name ${_subdomain};"
-            echo "    include sslconfig/${_certificate};"
+            # enable ssl and include the cert/key
+            echo "    ssl on;"
+            echo "    ssl_certificate ssl/${_certificate}/server.crt;"
+            echo "    ssl_certificate_key ssl/${_certificate}/server.key;"
             echo "}"
         else
             # HTTP
@@ -459,4 +455,35 @@ function nginx_add_redirect_url() {
     fi
     
     return ${E_SUCCESS}
+}
+
+# copies an nginx cert into a given directory
+function nginx_copy_cert() {
+    local _cert="${1}"
+    local _partitionName="${2}"
+    local _src
+
+    # if first word of the source is "partition" then the file comes from the partition
+    if [[ "${_cert}" =~ ^partition/ ]]; then
+        local _certPath="$(rcut "${_cert}" "/" )"
+        _src="${TREDLY_PARTITIONS_MOUNT}/${_partitionName}/${TREDLY_PTN_DATA_DIR_NAME}/${_certPath}/"
+    else
+        _src="$(rtrim ${_CONTAINER_CWD} /)/${_cert}"
+    fi
+    
+    # trim urlcert down to the last dir name
+    local _cert="$(echo "${_cert}" | rev | cut -d '/' -f 1 | rev )"
+    
+    # form a full path
+    local _certDestDir="${NGINX_SSL_DIR}/${_partitionName}/${_cert}"
+    # check if directory already exists
+    if [[ -d "${_certDestDir}" ]]; then
+        # it does - we dont want to overwrite this cert so return
+        return ${E_SUCCESS}
+    else
+        mkdir -p ${_certDestDir}
+        copy_files "${_src}" "${_certDestDir}"
+        return $?
+    fi
+
 }
