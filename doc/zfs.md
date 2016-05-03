@@ -70,7 +70,9 @@ None
 * com.tredly.udpinports - array of udpinports from tredlyfile
 * com.tredly.udpoutports - array of udpoutports from tredlyfile
 * com.tredly.url - array of translated urls from tredlyfile
+* com.tredly.url_cert - array of translated urlCerts from tredlyfile 
 * com.tredly.redirect_url - array of redirected urls set up for this container
+* com.tredly.redirect_url_cert - array of certificates for redirected (https) urls set up for this container
 * com.tredly.dns - array of dns servers this container uses
 * com.tredly.nginx_servername - a list of filenames (not full paths) of nginx server_name files associated with this container. Used for cleanup on destroy.
 * com.tredly.nginx_upstream - a list of filenames (not full paths) of nginx upstream files associated with this container. Used for cleanup on destroy.

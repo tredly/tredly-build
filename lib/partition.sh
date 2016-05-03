@@ -77,6 +77,10 @@ function partition_create() {
     # and the data dataset
     zfs_create_dataset "${ZFS_TREDLY_PARTITIONS_DATASET}/${_partitionName}/${TREDLY_PTN_DATA_DIR_NAME}" "${TREDLY_PARTITIONS_MOUNT}/${_partitionName}/${TREDLY_PTN_DATA_DIR_NAME}"
     _exitCode=$(( ${_exitCode} & $? ))
+    # create some default directories within this data dataset
+    mkdir -p "${TREDLY_PARTITIONS_MOUNT}/${_partitionName}/${TREDLY_PTN_DATA_DIR_NAME}/credentials"
+    mkdir -p "${TREDLY_PARTITIONS_MOUNT}/${_partitionName}/${TREDLY_PTN_DATA_DIR_NAME}/scripts"
+    mkdir -p "${TREDLY_PARTITIONS_MOUNT}/${_partitionName}/${TREDLY_PTN_DATA_DIR_NAME}/sslCerts"
     
     if [[ "${_silent}" != "true" ]]; then
         if [[ ${_exitCode} -eq 0 ]]; then

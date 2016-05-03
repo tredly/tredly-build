@@ -194,13 +194,14 @@ function tredlyfile_parse() {
 
             # strip any whitespace
             local strippedValue=$(strip_whitespace "${value}")
-            local arrayKey
-            # extract data from the tredly definition
-            [[ $key =~ (.*)([[:digit:]]+)(.*)([[:digit:]]+)(.*) ]] && arrayKey="${BASH_REMATCH[2]}"
-            
+            local arrayKey=''
+            # extract relevant keys from the tredlyfile declaration
+            [[ ${key} =~ ^([a-zA-Z]+)([0-9]+) ]] && arrayKey="${BASH_REMATCH[2]}"
+
             # do different things based off certain commands
             case "${key}" in
                 url[1-999])
+                    
                     # add it to the array if it actually contained data
                     if [[ -n "${strippedValue}" ]]; then
                         _CONF_TREDLYFILE_URL[${arrayKey}]="${value}"
@@ -213,6 +214,7 @@ function tredlyfile_parse() {
                 url[1-999]Websocket)
                     # add it to the array
                     _CONF_TREDLYFILE_URLWEBSOCKET[${arrayKey}]="${value}"
+                    
                     ;;
                 url[1-999]MaxFileSize)
                     # validate it
@@ -235,6 +237,7 @@ function tredlyfile_parse() {
                             _CONF_TREDLYFILE_URLMAXFILESIZE[${arrayKey}]="1m"
                         fi
                     fi
+                    
                     ;;
                 url[1-999]Redirect[1-999])
                     # we can have multiple urlredirects per url so handle that with space separated string since space is encoded to %20 in urls
@@ -245,6 +248,7 @@ function tredlyfile_parse() {
                         # add it to the array
                         _CONF_TREDLYFILE_URLREDIRECT[${arrayKey}]="${value}"
                     fi
+                    
                     ;;
                 url[1-999]Redirect[1-999]Cert)
                     # if the value is blank then set the value to "null" so that the numbering within the string is correct
