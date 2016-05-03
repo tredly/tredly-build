@@ -1699,8 +1699,8 @@ function destroy_container() {
         local _exitCode=0
         for _cert in ${_combinedCertList[@]}; do
             # check if this cert is in use by containers in this partition
-            local _urlCertInUse=$( zfs get -r -H -o value,property,name all ${ZFS_TREDLY_PARTITIONS_DATASET}/${_partitionName}/${TREDLY_CONTAINER_DIR_NAME} | grep "${ZFS_PROP_ROOT}.url_cert:" | grep -v 'cntr$' | grep "${_cert}" )
-            local _urlRedirectCertInUse=$( zfs get -r -H -o value,property,name all ${ZFS_TREDLY_PARTITIONS_DATASET}/${_partitionName}/${TREDLY_CONTAINER_DIR_NAME} | grep "${ZFS_PROP_ROOT}.redirect_url_cert:" | grep -v 'cntr$' | grep "${_cert}" )
+            local _urlCertInUse=$( zfs get -r -H -o value,property,name all ${ZFS_TREDLY_PARTITIONS_DATASET}/${_partitionName}/${TREDLY_CONTAINER_DIR_NAME} | grep "${ZFS_PROP_ROOT}.url_cert:" | grep -v "${uuid}\|cntr$" | grep "${_cert}" | wc -l )
+            local _urlRedirectCertInUse=$( zfs get -r -H -o value,property,name all ${ZFS_TREDLY_PARTITIONS_DATASET}/${_partitionName}/${TREDLY_CONTAINER_DIR_NAME} | grep "${ZFS_PROP_ROOT}.redirect_url_cert:" | grep -v "${uuid}\|cntr$" | grep "${_cert}" | wc -l )
             
             # if nothing was found then delete the cert from nginx
             if [[ ${_urlCertInUse} -eq 0 ]] && [[ ${_urlRedirectCertInUse} -eq 0 ]]; then
