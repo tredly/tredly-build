@@ -475,8 +475,12 @@ function ip4_set_host_network() {
     fi
     
     if ! is_valid_ip4 "${_ip4}"; then
-        exit_with_error "Invalid IP4 address: ${_ip4}"
+        exit_with_error "${_ip4} is not a valid IP address"
     fi
+    if ! is_valid_cidr "${_ip4CIDR}"; then
+        exit_with_error "${_ip4CIDR} is not a valid CIDR"
+    fi
+    
     
     # make sure the interface exists
     if ! network_interface_exists "${_interface}"; then
@@ -638,4 +642,116 @@ function ip4_set_host_hostname() {
         e_error "Failed"
     fi
     return ${_exitCode}
+}
+
+
+# updates all configurations with the given new subnet for containers
+function ip4_set_container_subnet() {
+    local _ipSubnet="${1}"
+    
+    # check if there are built containers
+    local _containerCount=$( zfs_get_all_containers | wc -l )
+    
+    if [[ ${_containerCount} -gt 0 ]]; then 
+        exit_with_error "This host currently has built containers. Please destroy them and run this command again."
+    fi
+    
+    # make sure we received a subnet mask/cidr
+    if ! string_contains_char "${_ipSubnet}" "/"; then
+        exit_with_error "Please include a subnet mask/cidr"
+    fi
+    
+    # extract the ip4 address 
+    local _ip4=$( lcut "${1}" '/' )
+    # and cidr
+    local _cidr=$( rcut "${1}" '/' )
+    
+    if ! is_valid_cidr "${_cidr}"; then
+        exit_with_error "Please include a valid cidr."
+    fi
+
+    # validate the arguments
+    if ! is_valid_ip4 "${_ip4}"; then
+        exit_with_error "${_ip4} is not a valid ip"
+    fi
+    if ! is_valid_cidr "${_cidr}"; then
+        exit_with_error "${_cidr} is not a valid CIDR"
+    fi
+    
+    # get the netmask for use later
+    local _netMask=$( cidr2netmask "${_cidr}" )
+    
+    # get the old container ip so we can replace it
+    local _oldJIP=$( get_interface_ip4 "${_CONF_COMMON[lif]}" )
+    local _oldJNet="${_CONF_COMMON['lifNetwork']}/${_CONF_COMMON['lifCIDR']}"
+    
+    e_header "Updating container subnet"
+    
+    #################
+    ## UPDATE HOSTS CONFIGS - rc.conf, ipfw.vars, tredly-host.conf
+    #################
+    # get the new ip address for the container interface
+    local _newJIP=$( get_last_usable_ip4_in_network "${_ip4}" "${_cidr}" )
+    
+    # update the local container interface 
+    e_note "Updating ${_CONF_COMMON[lif]}"
+    # remove the old jip
+    ifconfig ${_CONF_COMMON[lif]} delete ${_oldJIP}
+    # add the new one
+    ifconfig ${_CONF_COMMON[lif]} inet ${_newJIP} netmask ${_netMask}
+    if [[ $? -eq 0 ]]; then
+        e_success "Success"
+    else
+        e_error "Failed"
+    fi
+    e_note "Updating rc.conf"
+    if replace_line_in_file "^ifconfig_${_CONF_COMMON[lif]}=\".*\"$" "ifconfig_${_CONF_COMMON[lif]}=\"inet ${_newJIP} netmask ${_netMask}\"" "${RC_CONF}"; then
+        e_success "Success"
+    else
+        e_error "Failed"
+    fi
+    
+    e_note "Updating IPFW"
+    if  replace_line_in_file "^p7ip=\".*\"" "p7ip=\"${_newJIP}\"" "${IPFW_VARS}" && \
+        replace_line_in_file "^clsn=\".*\"" "clsn=\"${_ip4}/${_cidr}\"" "${IPFW_VARS}"; then
+        e_success "Success"
+    else
+        e_error "Failed"
+    fi
+    
+    # update tredly-host.conf
+    e_note "Updating tredly-host.conf"
+    if  replace_line_in_file "^lifNetwork=.*$" "lifNetwork=${_ip4}/${_cidr}" "${_TREDLY_DIR_CONF}/tredly-host.conf" && \
+        replace_line_in_file "^dns=.*$" "dns=${_newJIP}" "${_TREDLY_DIR_CONF}/tredly-host.conf" && \
+        replace_line_in_file "^httpproxy=.*$" "httpproxy=${_newJIP}" "${_TREDLY_DIR_CONF}/tredly-host.conf" && \
+        replace_line_in_file "^vnetdefaultroute=.*$" "vnetdefaultroute=${_newJIP}" "${_TREDLY_DIR_CONF}/tredly-host.conf"; then
+        
+        e_success "Success"
+    else
+        e_error "Failed"
+    fi
+    
+    e_note "Updating unbound.conf"
+    if  replace_line_in_file "interface: ${_oldJIP}$" "interface: ${_newJIP}" "${UNBOUND_ETC_DIR}/unbound.conf" && \
+        replace_line_in_file "access-control: ${_oldJNet} allow$" "access-control: ${_ip4}/${_cidr} allow" "${UNBOUND_ETC_DIR}/unbound.conf"; then
+        e_success "Success"
+    else
+        e_error "Failed"
+    fi
+
+    # reload unbound
+    e_note "Reloading DNS server"
+    if unbound_reload; then
+        e_success "Success"
+    else
+        e_error "Failed"
+    fi
+    
+     # reload ipfw
+    e_note "Restarting Firewall"
+    if ipfw_restart; then
+        e_success "Success"
+    else
+        e_error "Failed"
+    fi
 }
