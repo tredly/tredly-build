@@ -72,6 +72,7 @@ declare TREDLY_ONSTOP_SCRIPT="/etc/rc.onstop"
 # IPFW Scripts
 declare IPFW_SCRIPT="/usr/local/etc/ipfw.rules"
 declare IPFW_FORWARDS="/usr/local/etc/ipfw.layer4"
+declare IPFW_VARS="/usr/local/etc/ipfw.vars"
 
 # The table numbers within the host
 declare IPFW_TABLE_PUBLIC_IPS="1"
@@ -86,6 +87,11 @@ declare CONTAINER_IPFW_WL_TABLE_CONTAINERGROUP="1"
 declare CONTAINER_IPFW_WL_TABLE_PARTITION="2"
 declare CONTAINER_IPFW_WL_TABLE_CONTAINER="3"
 
+# location of rc.conf
+declare RC_CONF="/etc/rc.conf"
+
+# location of sshd_config
+declare SSHD_CONFIG="/etc/ssh/sshd_config"
 
 ## what to rename the interface to within the container
 declare VNET_CONTAINER_IFACE_NAME="vnet0"
