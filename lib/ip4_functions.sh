@@ -644,7 +644,6 @@ function ip4_set_host_hostname() {
     return ${_exitCode}
 }
 
-
 # updates all configurations with the given new subnet for containers
 function ip4_set_container_subnet() {
     local _ipSubnet="${1}"
