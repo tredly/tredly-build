@@ -27,13 +27,24 @@ check_for_zfs
 check_for_ipfw
 
 show_help "Available Commands:
-    container subnet
+    container
     ---------
     Description:
         Configures the default subnet for containers.
 
     Examples:
         $(basename "$0") config container subnet 10.1.0.0/24
+        
+    host
+    ---------
+    Description:
+        Configures the Tredly host.
+
+    Examples:
+        $(basename "$0") config host network em0 192.168.150.20/24
+        $(basename "$0") config host gateway 192.168.150.254
+        $(basename "$0") config host hostname myhost
+        
 "
 
 case "${_SUBCOMMANDS[0]}" in
@@ -50,6 +61,38 @@ case "${_SUBCOMMANDS[0]}" in
             ;;
             *)
                 exit_with_error "Unknown config container command '${_SUBCOMMANDS[1]}'"
+            ;;
+        esac
+    ;;
+    host)
+        case "${_SUBCOMMANDS[1]}" in
+            gateway)
+                # check the number of args received
+                if [[ ${#_SUBCOMMANDS[@]} -gt 3 ]]; then
+                    exit_with_error "Too many arguments received."
+                fi
+                
+                # update the hosts gateway
+                ip4_set_host_gateway "${_SUBCOMMANDS[2]}"
+            ;;
+            hostname)
+                # check the number of args received
+                if [[ ${#_SUBCOMMANDS[@]} -gt 3 ]]; then
+                    exit_with_error "Too many arguments received."
+                fi
+                
+                # update the hosts hostname
+                ip4_set_host_hostname "${_SUBCOMMANDS[2]}"
+            ;;
+            network)
+                # check the number of args received
+                if [[ ${#_SUBCOMMANDS[@]} -gt 4 ]]; then
+                    exit_with_error "Too many arguments received."
+                fi
+                ip4_set_host_network "${_SUBCOMMANDS[2]}" "${_SUBCOMMANDS[3]}"
+            ;;
+            *)
+                exit_with_error "Unknown config host command '${_SUBCOMMANDS[1]}'"
             ;;
         esac
     ;;
