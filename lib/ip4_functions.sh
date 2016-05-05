@@ -148,13 +148,13 @@ function get_container_interface_ip4() {
 ## Return:
 ##     bool
 function network_interface_exists() {
-    local result=0
+    local _interfaceName="${1}"
 
-    if [[ -z $(ifconfig | grep "^${1}:") ]]; then
-        result=1
+    if [[ -z $(ifconfig | grep "^${_interfaceName}:") ]]; then
+        return ${E_ERROR}
     fi
 
-    return $result
+    return ${E_SUCCESS}
 }
 
 # given an ip4 address, return the next in the sequence
@@ -341,11 +341,11 @@ function is_valid_ip4() {
     do
         # if this value is < 0 or > 255 then its bogus
         if [[ "$value" -lt "0" || "$value" -gt "255" || ! "$value" =~ ^[0-9]{1,3}$ ]]; then
-            return $E_ERROR
+            return ${E_ERROR}
         fi
     done
 
-    return $E_SUCCESS
+    return ${E_SUCCESS}
 }
 
 # takes an ip address, and checks if it is valid or not
@@ -406,10 +406,11 @@ function get_ip4_broadcast_address() {
 # takes an ip4 address and a network address (including cidr) and checks to see if that ip4 address falls within the given network
 function ip4_is_network_member() {
     local _ip4="${1}"
+    local _network="${2}"
 
     # split out the network and cidr
     local _network _cidr
-    IFS=/ read -r _network _cidr <<< "${2}"
+    IFS=/ read -r _network _cidr <<< "${_network}"
 
     local _broadcast=$( get_ip4_broadcast_address "${_network}" "${_cidr}" )
 
@@ -426,24 +427,24 @@ function ip4_is_network_member() {
             if [[ i3 -ge n3 ]] && [[ i3 -le b3 ]]; then
                 # 4th octet
                 if [[ i4 -ge n4 ]] && [[ i4 -le b4 ]]; then
-                    return $E_SUCCESS
+                    return ${E_SUCCESS}
                 fi
             fi
         fi
     fi
 
-    return $E_ERROR
+    return ${E_ERROR}
 }
 # generates a random mac address
 function generate_mac_address() {
     local RANGE=255
 
-    #generate random numbers
+    # generate random numbers
     local number=$RANDOM
     local numbera=$RANDOM
     local numberb=$RANDOM
     
-    #ensure they are less than ceiling
+    # ensure they are less than ceiling
     let "number %= $RANGE"
     let "numbera %= $RANGE"
     let "numberb %= $RANGE"
@@ -451,11 +452,305 @@ function generate_mac_address() {
     # set mac stem
     local octets="02:33:11"
 
-    #use a command line tool to change int to hex(bc is pretty standard)
-    #they're not really octets.  just sections.
-    local octeta=`echo "obase=16;$number" | bc`
-    local octetb=`echo "obase=16;$numbera" | bc`
-    local octetc=`echo "obase=16;$numberb" | bc`
+    # use bc to change int to hex
+    local octeta=$( echo "obase=16;$number" | bc )
+    local octetb=$( echo "obase=16;$numbera" | bc )
+    local octetc=$( echo "obase=16;$numberb" | bc )
 
     echo "${octets}:${octeta}:${octetb}:${octetc}"
+}
+
+# changes the hosts network details
+function ip4_set_host_network() {
+    local _interface="${1}"
+    local _ip4="${2}"
+    
+    local _ip4CIDR=$( rcut "${_ip4}" '/' )
+    local _ip4=$( lcut "${_ip4}" '/' )
+    
+    local _exitCode=0
+    
+    if [[ -z "${_ip4}" ]]; then
+        exit_with_error "Please include an ip address"
+    fi
+    
+    if ! is_valid_ip4 "${_ip4}"; then
+        exit_with_error "${_ip4} is not a valid IP address"
+    fi
+    if ! is_valid_cidr "${_ip4CIDR}"; then
+        exit_with_error "${_ip4CIDR} is not a valid CIDR"
+    fi
+    
+    
+    # make sure the interface exists
+    if ! network_interface_exists "${_interface}"; then
+        exit_with_error "Interface ${_interface} does not exist"
+    fi
+    
+    # make sure the new ip address doesnt fall within the container subnet
+    if ip4_is_network_member "${_ip4}" "${_CONF_COMMON[lifNetwork]}/${_CONF_COMMON[lifCIDR]}"; then
+        exit_with_error "IP ${_ip4} falls within your container subnet. If you wish to use this ip address, please change your container subnet"
+    fi
+    
+    local _ip4Subnet=$( cidr2netmask "${_ip4CIDR}" )
+    
+    e_header "Setting Tredly host IP address to ${2} on interface ${_interface}"
+    
+    # set the ip address
+    e_note "Changing IP Address on interface ${_interface}"
+    ifconfig ${_interface} inet ${_ip4} netmask ${_ip4Subnet}
+    if [[ $? -eq 0 ]]; then
+        e_success "Success"
+    else
+        e_error "Failed"
+    fi
+    
+    # check if a line for this interface exists within rc.conf
+    local _numLines=$( cat "${RC_CONF}" | grep "^ifconfig_${_interface}=" | wc -l )
+    
+    local _lineToAdd="ifconfig_${_interface}=\"inet ${_ip4} netmask ${_ip4Subnet}\""
+
+    e_note "Updating rc.conf"
+    if [[ ${_numLines} -gt 0 ]]; then 
+        # line exists, change the network information in rc.conf
+        sed -i '' "s|ifconfig_${_interface}=.*|${_lineToAdd}|g" "${RC_CONF}"
+        _exitCode=$?
+    else
+        # does not exist, echo it in
+        echo "${_lineToAdd}" >> "${RC_CONF}"
+        _exitCode=$?
+    fi
+    if [[ ${_exitCode} -eq 0 ]]; then
+        e_success "Success"
+    else
+        e_error "Failed"
+    fi
+    
+    e_note "Updating SSHD"
+    # change the listen address for ssh
+    sed -i '' "s|ListenAddress .*|ListenAddress ${_ip4}|g" "${SSHD_CONFIG}"
+    _exitCode=$?
+    if [[ $? -eq 0 ]]; then
+        e_success "Success"
+    else
+        e_error "Failed"
+    fi
+
+    e_note "Updating IPFW"
+    # change the external ip for IPFW
+    sed -i '' "s|eip=.*|eip=\"${_ip4}\"|g" "${IPFW_VARS}"
+    _exitCode=$?
+    sed -i '' "s|eif=.*|eif=\"${_interface}\"|g" "/usr/local/etc/ipfw.vars"
+    _exitCode=$(( ${_exitCode} & $? ))
+    if [[ $? -eq 0 ]]; then
+        e_success "Success"
+    else
+        e_error "Failed"
+    fi
+    
+    e_note "Updating Tredly config"
+    sed -i '' "s|wifPhysical=.*|wifPhysical=${_interface}|g" "${_TREDLY_DIR_CONF}/tredly-host.conf"
+    _exitCode=$(( ${_exitCode} & $? ))
+}
+
+# changes the hosts gateway details
+function ip4_set_host_gateway() {
+    local _gateway="${1}"
+    
+    local _exitCode=0
+    
+    # ensure its a valid ip4 address
+    if ! is_valid_ip4 "${_gateway}"; then
+        exit_with_error "Invalid IP4 address: ${_gateway}"
+    fi
+    
+    e_header "Setting Tredly host default gateway to ${_gateway}"
+    
+    # get the current default gateway
+    local _currentGW=$( netstat -r | grep default | awk '{print $2}' )
+    
+    # try to set the default route
+    route delete default > /dev/null 2>&1
+    route add default ${_gateway} > /dev/null 2>&1
+    
+    # check if route errored and if it did, dont continue
+    if [[ $? -ne 0 ]]; then
+        # set the default back to the original
+        route delete default > /dev/null 2>&1
+        route add default ${_currentGW} > /dev/null 2>&1
+        exit_with_error "Failed to set default gateway to ${_gateway}. Is the network reachable from your Tredly host?"
+    fi
+    
+    local _lineToAdd="defaultrouter=\"${_gateway}\""
+    
+    # check if the line already exists
+    local _numLines=$( cat "${RC_CONF}" | grep "^defaultrouter=" | wc -l )
+    
+    if [[ ${_numLines} -gt 0 ]]; then
+        # change rc.conf
+        sed -i '' "s|defaultrouter=.*|${_lineToAdd}|g" "${RC_CONF}"
+        _exitCode=$(( ${_exitCode} & $? ))
+    else
+        # add it
+        echo "${_lineToAdd}" >> "${RC_CONF}"
+        _exitCode=$(( ${_exitCode} & $? ))
+    fi
+    
+    if [[ ${_exitCode} -eq 0 ]]; then
+        e_success "Success"
+    else
+        e_error "Failed"
+    fi
+    
+    return ${_exitCode}
+}
+
+# changes the hosts hostname
+function ip4_set_host_hostname() {
+    local _hostname="${1}"
+    
+    local _exitCode=0
+    
+    # ensure a hostname was received
+    if [[ -z "${_hostname}" ]]; then
+        exit_with_error "Please enter a hostname"
+    fi
+    
+    e_header "Setting Tredly hostname to ${_hostname}"
+    
+    # change the live hostname
+    hostname "${_hostname}"
+    _exitCode=$(( ${_exitCode} & $? ))
+    
+    local _lineToAdd="hostname=\"${_hostname}\""
+    
+    # check if the line already exists
+    local _numLines=$( cat "${RC_CONF}" | grep "^hostname=" | wc -l )
+    
+    if [[ ${_numLines} -gt 0 ]]; then
+        # make it permanent across reboots
+        sed -i '' "s|hostname=.*|${_lineToAdd}|g" "${RC_CONF}"
+        _exitCode=$(( ${_exitCode} & $? ))
+    else
+        echo "${_lineToAdd}" >> "${RC_CONF}"
+        _exitCode=$(( ${_exitCode} & $? ))
+    fi
+    
+    if [[ ${_exitCode} -eq 0 ]]; then
+        e_success "Success"
+    else
+        e_error "Failed"
+    fi
+    return ${_exitCode}
+}
+
+# updates all configurations with the given new subnet for containers
+function ip4_set_container_subnet() {
+    local _ipSubnet="${1}"
+    
+    # check if there are built containers
+    local _containerCount=$( zfs_get_all_containers | wc -l )
+    
+    if [[ ${_containerCount} -gt 0 ]]; then 
+        exit_with_error "This host currently has built containers. Please destroy them and run this command again."
+    fi
+    
+    # make sure we received a subnet mask/cidr
+    if ! string_contains_char "${_ipSubnet}" "/"; then
+        exit_with_error "Please include a subnet mask/cidr"
+    fi
+    
+    # extract the ip4 address 
+    local _ip4=$( lcut "${1}" '/' )
+    # and cidr
+    local _cidr=$( rcut "${1}" '/' )
+    
+    if ! is_valid_cidr "${_cidr}"; then
+        exit_with_error "Please include a valid cidr."
+    fi
+
+    # validate the arguments
+    if ! is_valid_ip4 "${_ip4}"; then
+        exit_with_error "${_ip4} is not a valid ip"
+    fi
+    if ! is_valid_cidr "${_cidr}"; then
+        exit_with_error "${_cidr} is not a valid CIDR"
+    fi
+    
+    # get the netmask for use later
+    local _netMask=$( cidr2netmask "${_cidr}" )
+    
+    # get the old container ip so we can replace it
+    local _oldJIP=$( get_interface_ip4 "${_CONF_COMMON[lif]}" )
+    local _oldJNet="${_CONF_COMMON['lifNetwork']}/${_CONF_COMMON['lifCIDR']}"
+    
+    e_header "Updating container subnet"
+    
+    #################
+    ## UPDATE HOSTS CONFIGS - rc.conf, ipfw.vars, tredly-host.conf
+    #################
+    # get the new ip address for the container interface
+    local _newJIP=$( get_last_usable_ip4_in_network "${_ip4}" "${_cidr}" )
+    
+    # update the local container interface 
+    e_note "Updating ${_CONF_COMMON[lif]}"
+    # remove the old jip
+    ifconfig ${_CONF_COMMON[lif]} delete ${_oldJIP}
+    # add the new one
+    ifconfig ${_CONF_COMMON[lif]} inet ${_newJIP} netmask ${_netMask}
+    if [[ $? -eq 0 ]]; then
+        e_success "Success"
+    else
+        e_error "Failed"
+    fi
+    e_note "Updating rc.conf"
+    if replace_line_in_file "^ifconfig_${_CONF_COMMON[lif]}=\".*\"$" "ifconfig_${_CONF_COMMON[lif]}=\"inet ${_newJIP} netmask ${_netMask}\"" "${RC_CONF}"; then
+        e_success "Success"
+    else
+        e_error "Failed"
+    fi
+    
+    e_note "Updating IPFW"
+    if  replace_line_in_file "^p7ip=\".*\"" "p7ip=\"${_newJIP}\"" "${IPFW_VARS}" && \
+        replace_line_in_file "^clsn=\".*\"" "clsn=\"${_ip4}/${_cidr}\"" "${IPFW_VARS}"; then
+        e_success "Success"
+    else
+        e_error "Failed"
+    fi
+    
+    # update tredly-host.conf
+    e_note "Updating tredly-host.conf"
+    if  replace_line_in_file "^lifNetwork=.*$" "lifNetwork=${_ip4}/${_cidr}" "${_TREDLY_DIR_CONF}/tredly-host.conf" && \
+        replace_line_in_file "^dns=.*$" "dns=${_newJIP}" "${_TREDLY_DIR_CONF}/tredly-host.conf" && \
+        replace_line_in_file "^httpproxy=.*$" "httpproxy=${_newJIP}" "${_TREDLY_DIR_CONF}/tredly-host.conf" && \
+        replace_line_in_file "^vnetdefaultroute=.*$" "vnetdefaultroute=${_newJIP}" "${_TREDLY_DIR_CONF}/tredly-host.conf"; then
+        
+        e_success "Success"
+    else
+        e_error "Failed"
+    fi
+    
+    e_note "Updating unbound.conf"
+    if  replace_line_in_file "interface: ${_oldJIP}$" "interface: ${_newJIP}" "${UNBOUND_ETC_DIR}/unbound.conf" && \
+        replace_line_in_file "access-control: ${_oldJNet} allow$" "access-control: ${_ip4}/${_cidr} allow" "${UNBOUND_ETC_DIR}/unbound.conf"; then
+        e_success "Success"
+    else
+        e_error "Failed"
+    fi
+
+    # reload unbound
+    e_note "Reloading DNS server"
+    if unbound_reload; then
+        e_success "Success"
+    else
+        e_error "Failed"
+    fi
+    
+     # reload ipfw
+    e_note "Restarting Firewall"
+    if ipfw_restart; then
+        e_success "Success"
+    else
+        e_error "Failed"
+    fi
 }

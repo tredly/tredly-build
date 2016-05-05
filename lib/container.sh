@@ -1231,7 +1231,7 @@ function container_create() {
         zfs_set_property "${_container_dataset}" "${ZFS_PROP_ROOT}:nginx_servername_dir" "${NGINX_SERVERNAME_DIR}"
         zfs_set_property "${_container_dataset}" "${ZFS_PROP_ROOT}:nginx_accessfile_dir" "${NGINX_ACCESSFILE_DIR}"
         local src
-        
+
         # loop over the URLCERTs and install them
         for _cert in ${_CONF_TREDLYFILE_URLCERT[@]}; do
             if [[ -n "${_cert}" ]]; then
@@ -1248,7 +1248,7 @@ function container_create() {
                 fi
             fi
         done
-        
+
         # loop over the URLREDIRECTCERTs and install them
         for _cert in ${_CONF_TREDLYFILE_URLREDIRECTCERT[@]}; do
             if [[ -n "${_cert}" ]]; then
@@ -2013,147 +2013,3 @@ function container_replace() {
     fi
 }
 
-# updates all configurations with the given new subnet for containers
-function container_subnet() {
-    local _ipSubnet="${1}"
-    
-    # check if there are built containers
-    local _containerCount=$( zfs_get_all_containers | wc -l )
-    
-    if [[ ${_containerCount} -gt 0 ]]; then 
-        exit_with_error "This host currently has built containers. Please destroy them and run this command again."
-    fi
-    
-    # make sure we received a subnet mask/cidr
-    if ! string_contains_char "${_ipSubnet}" "/"; then
-        exit_with_error "Please include a subnet mask/cidr"
-    fi
-    
-    # extract the ip4 address 
-    local _ip4=$( lcut "${1}" '/' )
-    # and cidr
-    local _cidr=$( rcut "${1}" '/' )
-    
-    if ! is_valid_cidr "${_cidr}"; then
-        exit_with_error "Please include a valid cidr."
-    fi
-
-    # validate the arguments
-    if ! is_valid_ip4 "${_ip4}"; then
-        exit_with_error "${_ip4} is not a valid ip"
-    fi
-    if ! is_valid_cidr "${_cidr}"; then
-        exit_with_error "${_cidr} is not a valid CIDR"
-    fi
-    
-    # get the netmask for use later
-    local _netMask=$( cidr2netmask "${_cidr}" )
-    
-    # get the old container ip so we can replace it
-    local _oldJIP=$( get_interface_ip4 "${_CONF_COMMON[lif]}" )
-    local _oldJNet="${_CONF_COMMON['lifNetwork']}/${_CONF_COMMON['lifCIDR']}"
-    
-    #################
-    ## UPDATE HOSTS CONFIGS - rc.conf, pf.conf, tredly-host.conf
-    #################
-    # get the new ip address for the container interface
-    local _newJIP=$( get_last_usable_ip4_in_network "${_ip4}" "${_cidr}" )
-    
-    # update the local container interface 
-    e_note "Updating ${_CONF_COMMON[lif]}"
-    # remove the old jip
-    ifconfig ${_CONF_COMMON[lif]} delete ${_oldJIP}
-    # add the new one
-    ifconfig ${_CONF_COMMON[lif]} inet ${_newJIP} netmask ${_netMask}
-    if [[ $? -eq 0 ]]; then
-        e_success "Success"
-    else
-        e_error "Failed"
-    fi
-    e_note "Updating rc.conf"
-    if replace_line_in_file "^ifconfig_${_CONF_COMMON[lif]}=\".*\"$" "ifconfig_${_CONF_COMMON[lif]}=\"inet ${_newJIP} netmask ${_netMask}\"" "/etc/rc.conf"; then
-        e_success "Success"
-    else
-        e_error "Failed"
-    fi
-    
-    e_note "Updating pip in ${IPFW_SCRIPT}"
-    if replace_line_in_file "^pip=\".*\"$" "pip=\"${_newJIP}\"" "${IPFW_SCRIPT}"; then
-        e_success "Success"
-    else
-        e_error "Failed"
-    fi
-    e_note "Updating jsn in ${IPFW_SCRIPT}"
-    if replace_line_in_file "^jsn=\".*\"$" "jsn=\"${_ip4}/${_cidr}\"" "${IPFW_SCRIPT}"; then
-        e_success "Success"
-    else
-        e_error "Failed"
-    fi
-    
-    # update tredly-host.conf
-    e_note "Updating lifNetwork in tredly-host.conf"
-    if replace_line_in_file "^lifNetwork=.*$" "lifNetwork=${_ip4}/${_cidr}" "${_TREDLY_DIR_CONF}/tredly-host.conf"; then
-        e_success "Success"
-    else
-        e_error "Failed"
-    fi
-
-    e_note "Updating dns in tredly-host.conf"
-    if replace_line_in_file "^dns=.*$" "dns=${_newJIP}" "${_TREDLY_DIR_CONF}/tredly-host.conf"; then
-        e_success "Success"
-    else
-        e_error "Failed"
-    fi
-    e_note "Updating httpproxy in tredly-host.conf"
-    if replace_line_in_file "^httpproxy=.*$" "httpproxy=${_newJIP}" "${_TREDLY_DIR_CONF}/tredly-host.conf"; then
-        e_success "Success"
-    else
-        e_error "Failed"
-    fi
-
-    e_note "Updating interface in unbound.conf"
-    if replace_line_in_file "interface: ${_oldJIP}$" "interface: ${_newJIP}" "${UNBOUND_ETC_DIR}/unbound.conf"; then
-        e_success "Success"
-    else
-        e_error "Failed"
-    fi
-
-    e_note "Updating access-control in unbound.conf"
-    if replace_line_in_file "access-control: ${_oldJNet} allow$" "access-control: ${_ip4}/${_cidr} allow" "${UNBOUND_ETC_DIR}/unbound.conf"; then
-        e_success "Success"
-    else
-        e_error "Failed"
-    fi
-
-    # update unbound configs
-    # get a list of configs to modify
-    local _unboundConfigs=$( ls -1 "${UNBOUND_CONFIG_DIR}" )
-    IFS=$'\n'
-    local config
-    for config in ${_unboundConfigs}; do
-        e_note "Updating unbound config file ${config}"
-        replace_line_in_file $( regex_escape ${_oldJIP} ) "${_newJIP}" "${UNBOUND_CONFIG_DIR}/${config}"
-        
-        if [[ $? -eq 0 ]]; then
-            e_success "Success"
-        else
-            e_error "Failed"
-        fi
-    done
-
-    # reload unbound
-    e_note "Reloading DNS server"
-    if unbound_reload; then
-        e_success "Success"
-    else
-        e_error "Failed"
-    fi
-    
-     # reload unbound
-    e_note "Restarting Firewall"
-    if ipfw_restart; then
-        e_success "Success"
-    else
-        e_error "Failed"
-    fi
-}

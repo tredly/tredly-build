@@ -462,6 +462,7 @@ function nginx_copy_cert() {
     local _cert="${1}"
     local _partitionName="${2}"
     local _src
+    local _exitCode=0
 
     # if first word of the source is "partition" then the file comes from the partition
     if [[ "${_cert}" =~ ^partition/ ]]; then
@@ -481,9 +482,25 @@ function nginx_copy_cert() {
         # it does - we dont want to overwrite this cert so return
         return ${E_SUCCESS}
     else
+        # create the dir
         mkdir -p ${_certDestDir}
+        
+        # copy the files across
         copy_files "${_src}" "${_certDestDir}"
-        return $?
+        _exitCode=$?
+        
+        # change ownership of ssl cert and key
+        chown -R www "${_certDestDir}"
+        _exitCode=$(( ${_exitCode} && $? ))
+        
+        chgrp -R www "${_certDestDir}"
+        _exitCode=$(( ${_exitCode} && $? ))
+        
+        # only allow www to read the private key
+        chmod 600 "${_certDestDir}/server.key"
+        _exitCode=$(( ${_exitCode} && $? ))
+        
+        return ${_exitCode}
     fi
 
 }
