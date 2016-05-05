@@ -2,18 +2,41 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
-## 0.10.0 [Unreleased]
+## [0.10.0] - 2016-05-05
 #### Added
 - Added this CHANGELOG.md file
-- Added CONTRIBUTING.md guidelines for contribution
-- Implemented urlRedirect= for URLs
-- Implemented ability to change container resource limits/whitelist
-  on the fly
-- Allow ports 80 and 443 (tcp) and 53 (udp) OUT by default
-  (no longer required to specify these in your Tredlyfile)
+- Added CONTRIBUTING.md guidelines
+- Implemented `urlRedirect=` for URLs
+- Implemented ability to set container resource limits (RAM, CPU, HDD) and whitelist (`ipv4whitelist`) on the command line.
+- Added `any` keyword for ports
+- Including sample Tredlyfile
+- Added .gitignore
+- Container limit modification implemented
+- Added numbering (1 to 999) url blocks. This creates a grouping feature for URLS and their different settings.
+- Validate SSLCerts for URLs, validate Certs for redirects.
+- Put own IP address and hostname into hosts file
+- Added `$request_uri` for redirects.
+- Create default directories in partition data directory
+- Copy in SSL certs from `partition/container`
+- Automate SSL cert installation to Layer 7 proxy
+- Implemented IPv4 address change, hostname change, gateway change
+
+#### Fixed
+- Incorrect filename for `IPFW_FORWARDS` in defines.sh
+- Fix resolv.conf search
+- Bugfix for nginx proxy upstream file
+- CHMOD the SSL key to not be world readable
+
+#### Changed
+- Using MIT license instead of GPLv3
+- Allow 80, 443 (TCP) and 53 (UDP) out ports by default (except when `any` is set)
+- Update validate to new standard
+- Update locations to include relevant proxy files
+- Check that redirect urls exist
+- Enforcing gateway when changing IP address
 
 ## 0.9.0 - 2016-04-21
 #### Added
 - Initial release of Tredly
 
-[Unreleased]: https://github.com/tredly/tredly-build/compare/0.9.0...HEAD
+[0.10.0]: https://github.com/tredly/tredly-build/compare/v0.9.0...v0.10.0
