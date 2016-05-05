@@ -712,8 +712,10 @@ function ip4_set_container_subnet() {
     fi
 
     e_note "Updating unbound.conf"
-    if  replace_line_in_file "interface: ${_oldJIP}$" "interface: ${_newJIP}" "${UNBOUND_ETC_DIR}/unbound.conf" && \
-        replace_line_in_file "access-control: ${_oldJNet} allow$" "access-control: ${_ip4}/${_cidr} allow" "${UNBOUND_ETC_DIR}/unbound.conf"; then
+    sed -i '' "s|access-control: 10.0.0.0/16 allow|access-control: ${CONTAINER_SUBNET} allow|g" "/usr/local/etc/unbound/unbound.conf"
+    
+    if  replace_line_in_file "^    interface: .*$" "    interface: ${_newJIP}" "${UNBOUND_ETC_DIR}/unbound.conf" && \
+        replace_line_in_file "^    access-control: .* allow$" "    access-control: ${_ip4}/${_cidr} allow" "${UNBOUND_ETC_DIR}/unbound.conf"; then
         e_success "Success"
     else
         e_error "Failed"
@@ -726,6 +728,7 @@ function ip4_set_container_subnet() {
     else
         e_error "Failed"
     fi
+<<<<<<< HEAD
 
      # reload ipfw
     e_note "Restarting Firewall"
@@ -735,3 +738,16 @@ function ip4_set_container_subnet() {
         e_error "Failed"
     fi
 }
+=======
+    
+    e_note "Firewall requires restart. Please run \"service ipfw restart\" when you are ready. Please note this may disconnect your ssh session"
+    
+     # reload ipfw
+    #e_note "Restarting Firewall"
+    #if ipfw_restart; then
+        #e_success "Success"
+    #else
+        #e_error "Failed"
+    #fi
+}
+>>>>>>> d844e7983651ce6d1434756cb0486b1a73c41880

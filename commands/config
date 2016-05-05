@@ -5,7 +5,7 @@ cmn_assert_running_as_root
 
 # Sanity checks - make sure packages we need are installed
 check_for_zfs
-check_for_ipfw
+
 
 show_help "Available Commands:
     container
