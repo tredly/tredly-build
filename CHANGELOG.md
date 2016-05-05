@@ -20,6 +20,7 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 - Copy in SSL certs from `partition/container`
 - Automate SSL cert installation to Layer 7 proxy
 - Implemented IPv4 address change, hostname change, gateway change
+- Tredlyfile version is checked when building and will fail if it does not match the Tredly version
 
 #### Fixed
 - Incorrect filename for `IPFW_FORWARDS` in defines.sh
