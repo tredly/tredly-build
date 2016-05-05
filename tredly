@@ -36,7 +36,10 @@ declare _COMMAND=""
 declare -a _SUBCOMMANDS
 declare -A _FLAGS
 
-_VERSION="$(basename "$0") 0.10.0 (built: May 5 2016)"
+# versioning
+_VERSIONNUMBER="0.10.0"
+_VERSIONDATE="May 5 2016"
+
 _SHOW_HELP=false
 _ARGS=($@)
 _DEBUG=false
@@ -105,7 +108,7 @@ do
 
     ## Version flag
     elif [[ "$i" =~ ^(--version|-v) ]]; then
-        printf "${_VERSION}\n"; exit
+    printf "$(basename "$0") ${_VERSIONNUMBER} (built: ${_VERSIONDATE})\n"; exit
 
     ## get the first value that isn't a flag and save it as the command
     elif [[ -z "${_COMMAND}" ]]

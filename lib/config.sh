@@ -410,6 +410,11 @@ function tredlyfile_validate() {
     local -a required
     IFS=',' read -a required <<< "${_CONF_COMMON[required]}"
 
+    # ensure the tredlyfile we are processing is the same version as this version of tredly
+    if [[ "${_VERSIONNUMBER}" != "${_CONF_TREDLYFILE[versionNumber]}" ]]; then
+        exit_with_error "Tredlyfile version ${_CONF_TREDLYFILE[versionNumber]} does not match this version of Tredly. Please update your Tredlyfile to version ${_VERSIONNUMBER} and try again."
+    fi
+
     ## Validate the contents. Check for required fields
     for p in "${required[@]}"
     do
