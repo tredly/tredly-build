@@ -1,23 +1,4 @@
 #!/usr/bin/env bash
-##########################################################################
-# Copyright 2016 Vuid Pty Ltd 
-# https://www.vuid.com
-#
-# This file is part of tredly-build.
-#
-# tredly-build is free software: you can redistribute it and/or modify
-# it under the terms of the GNU General Public License as published by
-# the Free Software Foundation, either version 3 of the License, or
-# (at your option) any later version.
-#
-# tredly-build is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-# GNU General Public License for more details.
-#
-# You should have received a copy of the GNU General Public License
-# along with tredly-build.  If not, see <http://www.gnu.org/licenses/>.
-##########################################################################
 
 # Deprecated - PF support was removed in favour of IPFW for version 0.9.0
 
@@ -37,7 +18,7 @@ function pf_reload_anchor() {
     local _anchorFile="${2}"
 
     local _exitCode
-    
+
     # sanity checks
     if [[ -z "${_anchorName}" ]] || [[ -z "${_anchorFile}" ]]; then
         return $E_ERROR
@@ -47,34 +28,34 @@ function pf_reload_anchor() {
     /sbin/pfctl -a "${_anchorName}" -f "${_anchorFile}" > /dev/null 2>&1
 
     _exitCode=$?
-    
+
     #if [[ ${_exitCode} -ne 0 ]]; then
         #e_error "Failed to reload firewall rule ${_anchorFile}"
     #else
-        #e_verbose "Reloaded anchor ${_anchorFile}" 
+        #e_verbose "Reloaded anchor ${_anchorFile}"
     #fi
     return ${_exitCode}
 }
 
 function pf_flush_anchor() {
     local _anchorName="${1}"
-    
+
     # sanity checks
     if [[ -z "${_anchorName}" ]]; then
         return $E_ERROR
     fi
-    
+
     _exitCode=$?
-    
+
     # flush anchor and hide output
     /sbin/pfctl -a "${_anchorName}" -F rules > /dev/null 2>&1
-    
+
     if [[ ${_exitCode} -ne 0 ]]; then
         e_error "Failed to flush firewall rule ${_anchorName}"
     else
-        e_verbose "Flushed firewall rule ${_anchorName}" 
+        e_verbose "Flushed firewall rule ${_anchorName}"
     fi
-    
+
     return ${_exitCode}
 }
 
@@ -95,7 +76,7 @@ function add_pf_table() {
         #add_data_to_start_of_file "${declaration}\n    ${ip}\n}" "${anchorFile}"
         echo -e "${declaration}\n    ${ip}\n}" >> "${anchorFile}"
 
-    else 
+    else
         # declaration exists, so try update it
 
         # first get the data between the two strings
@@ -123,7 +104,7 @@ function create_anchor_file() {
     if [[ -z "${rdrAnchor}" ]]; then
         rdrAnchor="false"
     fi
-    
+
     ## Check if the file exists, and if it doesn't then create it with appropriate permissions
     if [[ ! -f "${anchorFile}" ]]; then
         touch "${anchorFile}"
@@ -142,28 +123,28 @@ function pf_include_anchor() {
     local _anchorNameToInclude="${2}"
     local _anchorFileToInclude="${3}"
     local _isRdrAnchor="${4}"
-    
+
     local _anchorDefinition="anchor ${_anchorNameToInclude}"
-    
+
     # check to see if there are definitions in the main anchor file
     if [[ $(cat "${_anchorFile}" | grep "^${_anchorDefinition}$" | wc -l) -eq 0 ]]; then
         local _anchorDefinition
         if [[ "${_isRdrAnchor}" == "true" ]]; then
             _anchorDefinition="rdr-${_anchorDefinition}"
-        else 
+        else
             _anchorDefinition="anchor ${anchorName}"
         fi
-        
+
         # doesnt exist so add it in
-        { 
+        {
             echo "${_anchorDefinition}"
             echo "load anchor ${_anchorNameToInclude} from \"${_anchorFileToInclude}\""
         } >> "${_anchorFile}"
-        
+
         return $E_SUCCESS
     else
         e_verbose "Anchor definition ${_anchorDefinition} already exists"
-        
+
         return $E_ERROR
     fi
 }
@@ -183,17 +164,17 @@ function open_proxy_port() {
     if [ -n "${9}" ] && [ "${9}" = "yes" ]; then
         logging="log"
     fi
-    
+
     # do some error checking
     # if ports == empty string then don't do anything
     if [[ -z "${hostPort}" || -z "${containerPort}" ]]; then
         e_verbose "No ${protocol} ports specified, skipping layer 4 proxy port"
         return $E_ERROR
     fi
-    
+
     # create the base rule
     local forwardRule="rdr pass ${logging} on ${interface} proto ${protocol} from {${sourceIP4}} to ${destIP4} port ${hostPort} -> ${containerIP4} port ${containerPort}"
-    
+
     # check that this interface + port isn't already forwarded - cant forward the same port twice!
     local portExists=$(cat "${anchorFile}" | grep -F "${destIP4} port ${hostPort} ->" | wc -l)
     if [[ "${portExists}" -ne "0" ]]; then
@@ -207,9 +188,9 @@ function open_proxy_port() {
         e_verbose "Adding layer 4 proxy rule: ${forwardRule}"
         # add the rules
         add_data_to_start_of_file "${forwardRule}" "${anchorFile}"
-        
+
         return $E_SUCCESS
-    else 
+    else
         e_verbose "Layer 4 proxy rule already exists"
         return $E_ERROR
     fi
@@ -234,7 +215,7 @@ function open_fw_ports() {
     if [[ -n "${9}" ]]; then
         extras="${9}"
     fi
-    
+
     # do some error checking
     # if ports == empty string then don't do anything
     if [[ -z "${ports}" ]]; then
@@ -266,7 +247,7 @@ function open_fw_ports() {
     if [[ "${ruleExists}" -eq "0" ]]; then
         e_verbose "Adding firewall rule: ${currentRule}"
         eval 'echo "${currentRule}" >> "${anchorFile}"'
-    else 
+    else
         e_verbose "Firewall rule already exists: ${currentRule}"
     fi
 }
@@ -285,7 +266,7 @@ function open_fw_ports() {
 function remove_fw_rules() {
     local ip="${1}"
     local anchorName="${2}"
-    
+
     local anchorFile="${ANCHOR_DIR}/${anchorName}"
     local projectsAnchorFile="${PROJECTS_ANCHOR_FILE}"
 
@@ -316,7 +297,7 @@ function remove_fw_rules() {
                 # fix the edge case of the last member being removed,
                 # and the new last member remaining in the form: "10.0.0.1, \"
                 # which causes pf to fail
-                
+
                 membersData=$( echo -e "${membersData}" | sed '/./,$!d' ) # remove the starting newline
                 membersData=$( ltrim "${membersData}" ) # and whitespace at the start
                 membersData=$( echo -en "${membersData}" )   # remove the trailing newline
@@ -324,12 +305,12 @@ function remove_fw_rules() {
 
                 # remove the declaration
                 $( delete_data_from_file_between_strings_inclusive 'table <members> {' '}' "${anchorFile}" )
-                
+
                 # and re-add it
                 $( add_pf_table "${anchorName}" "${membersData}" "members" )
             fi
         fi
-        
+
         # check to see if this file has no members and if so, delete it
         if [[ -z ${membersFileData} ]]; then
             e_verbose "Deleting anchor file ${anchorFile}"
@@ -355,11 +336,11 @@ function remove_fw_rules() {
 function remove_l4_proxy_rules() {
     local ip="${1}"
     local anchorName="${2}"
-    
+
     local anchorFile="${PROXY_DIR}/${anchorName}"
 
     local regex=$(regex_escape "${ip}")
-    
+
     # sanity check
     if ! is_valid_ip4 "${ip}"; then
         e_error "${ip} is not a valid ip4 address"
@@ -398,18 +379,18 @@ function pf_create_table_file() {
     local tableFile="${1}"
     local tableName="${2}"
     local -a tableMembers=("${!3}")
-    
+
     # create the table dir if it doesnt exist
     if [[ ! -d "${TABLE_DIR}" ]]; then
         mkdir -p "${TABLE_DIR}"
     fi
-    
+
     ## Check if the file exists, and if it doesn't then create it with appropriate permissions
     if [[ ! -f "${tableFile}" ]]; then
         touch "${tableFile}"
         chmod 600 "${tableFile}"
     fi
-    
+
     local memberDeclaration
 
     # add the members in if we were given some
@@ -424,7 +405,7 @@ function pf_create_table_file() {
             done
         } > "${tableFile}"
     fi
-    
+
     return $E_SUCCESS
 }
 
@@ -433,7 +414,7 @@ function pf_include_table() {
     local _tableFile="${1}"
     local _tableName="${2}"
     local _anchorFile="${3}"
-    
+
     # make sure both files exist
     if [[ ! -f "${_tableFile}" ]]; then
         return $E_ERROR
@@ -445,12 +426,12 @@ function pf_include_table() {
     if [[ -z "${_tableName}" ]]; then
         return $E_ERROR
     fi
-    
+
     # create the declaration
     local _declaration="table <${_tableName}> file \"${_tableFile}\""
-    
+
     $( add_data_to_start_of_file_if_not_exists "${_declaration}" "${_anchorFile}" )
-    
+
     return $?
 }
 
@@ -463,6 +444,6 @@ function pf_remove_include_table() {
     if remove_lines_from_file "${_anchorFile}" "<${_tableName}>" "false"; then
         return $E_SUCCESS
     fi
-    
+
     return $E_ERROR
 }

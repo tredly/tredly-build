@@ -1,23 +1,4 @@
 #!/usr/bin/env bash
-##########################################################################
-# Copyright 2016 Vuid Pty Ltd 
-# https://www.vuid.com
-#
-# This file is part of tredly-build.
-#
-# tredly-build is free software: you can redistribute it and/or modify
-# it under the terms of the GNU General Public License as published by
-# the Free Software Foundation, either version 3 of the License, or
-# (at your option) any later version.
-#
-# tredly-build is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-# GNU General Public License for more details.
-#
-# You should have received a copy of the GNU General Public License
-# along with tredly-build.  If not, see <http://www.gnu.org/licenses/>.
-##########################################################################
 
 # Checks whether unbound is installed on the host or not
 function check_for_unbound() {
@@ -42,14 +23,14 @@ function unbound_restart() {
 # _hostname - the hostname to insert
 # _ip4 - the ip4 to associate with this record
 # _identifier - the ip address or other identifier of the record. Used so that specific records can be removed without affecting others.
-# for example, using tredly replace would cause all records to be removed without deleting by this identifier, as the new container is 
+# for example, using tredly replace would cause all records to be removed without deleting by this identifier, as the new container is
 # created first, then destroyed. A destruction on hostname alone would cause all records to be removed.
 function unbound_insert_a_record() {
     local _hostname="${1}"
     local _ip4="${2}"
     local _identifier="${3}"
     local _filename
-    
+
     # validate input
     if [[ -z "${_hostname}" ]]; then
         return $E_ERROR
@@ -60,7 +41,7 @@ function unbound_insert_a_record() {
     if ! is_valid_ip4 "${_ip4}"; then
         return $E_ERROR
     fi
-    
+
     # base the filename off the last 3 (sub)domains
     _filename=$( echo "${_hostname}" | rev | cut -d. -f 3 -f 2 -f 1 | rev )
 
@@ -92,19 +73,19 @@ function unbound_insert_a_record() {
 
 # inserts a record into a given unbound config
 # hostname is necessary to work out what file the record resides in
-# identifier is the uuid of the container to delete - as a comment at the end of the line to be deleted. 
+# identifier is the uuid of the container to delete - as a comment at the end of the line to be deleted.
 # eg: local-data: "www.vuid.com IN A 10.0.255.254" # <uuid>
 # Where: 10.0.0.3 is the identifer
 function unbound_remove_records() {
     local _hostname="${1}"
     local _identifier="${2}"
     local _filename
-    
+
     # validate input
     if [[ -z "${_hostname}" ]]; then
         return $E_ERROR
     fi
-    
+
     # base the filename off the last 3 (sub)domains
     _filename=$( echo "${_hostname}" | rev | cut -d. -f 3 -f 2 -f 1 | rev )
 
@@ -112,10 +93,10 @@ function unbound_remove_records() {
     _filename="${_filename//./_}"
 
     _returnCode=0
-    
+
     # remove any by comment any references to this ip address
     remove_lines_from_file "${UNBOUND_CONFIG_DIR}/${_filename}" "# ${_identifier}$" "true"
     _returnCode=$(( _returnCode & $? ))
-    
+
     return ${_returnCode}
 }

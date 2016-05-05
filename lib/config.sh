@@ -1,23 +1,4 @@
 #!/usr/bin/env bash
-##########################################################################
-# Copyright 2016 Vuid Pty Ltd 
-# https://www.vuid.com
-#
-# This file is part of tredly-build.
-#
-# tredly-build is free software: you can redistribute it and/or modify
-# it under the terms of the GNU General Public License as published by
-# the Free Software Foundation, either version 3 of the License, or
-# (at your option) any later version.
-#
-# tredly-build is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-# GNU General Public License for more details.
-#
-# You should have received a copy of the GNU General Public License
-# along with tredly-build.  If not, see <http://www.gnu.org/licenses/>.
-##########################################################################
 
 # associative arrays
 declare -A _CONF_COMMON
@@ -94,7 +75,7 @@ function common_conf_parse() {
         e_verbose "No configuration found for \`${context}\`. Skipping."
         return ${E_SUCCESS}
     fi
-    
+
     # empty our arrays
     _CONF_COMMON_DNS=()
 
@@ -107,10 +88,10 @@ function common_conf_parse() {
             value="${line#*=}"
             # strip anything after a comment
             value=$( lcut "${value}" '#' )
-            
+
             # strip any whitespace
             local strippedValue=$(strip_whitespace "${value}")
-            
+
             # handle some lines specifically
             case "${key}" in
                 lifNetwork)
@@ -178,13 +159,13 @@ function tredlyfile_parse() {
     ## Read the data in
     while read line || [[ -n "$line" ]]; do
         if [[ "$line" =~ ^[^#\;]*= ]]; then
-            
+
             key="${line%%=*}"
             value="${line#*=}"
             # strip anything after a comment
             lvalue=$( lcut "${value}" '#' )
             rvalue=$( rcut "${value}" '#' )
-            
+
             # check if the hash was escaped or not, and if so then stick it back together
             if [[ ${lvalue} =~ \\$ ]]; then
                 value="${lvalue}#${rvalue}"
@@ -201,7 +182,7 @@ function tredlyfile_parse() {
             # do different things based off certain commands
             case "${key}" in
                 url[1-999])
-                    
+
                     # add it to the array if it actually contained data
                     if [[ -n "${strippedValue}" ]]; then
                         _CONF_TREDLYFILE_URL[${arrayKey}]="${value}"
@@ -214,14 +195,14 @@ function tredlyfile_parse() {
                 url[1-999]Websocket)
                     # add it to the array
                     _CONF_TREDLYFILE_URLWEBSOCKET[${arrayKey}]="${value}"
-                    
+
                     ;;
                 url[1-999]MaxFileSize)
                     # validate it
                     if [[ -n "${value}" ]]; then
                         unit="${value: -1}"
                         unitValue="${value%?}"
-                        
+
                         if [[ "${unit}" == "g" ]] || [[ "${unit}" == "G" ]]; then
                             # convert it to megabytes
                             unitValue=$(( ${unitValue} * 1024 ))
@@ -237,7 +218,7 @@ function tredlyfile_parse() {
                             _CONF_TREDLYFILE_URLMAXFILESIZE[${arrayKey}]="1m"
                         fi
                     fi
-                    
+
                     ;;
                 url[1-999]Redirect[1-999])
                     # we can have multiple urlredirects per url so handle that with space separated string since space is encoded to %20 in urls
@@ -248,7 +229,7 @@ function tredlyfile_parse() {
                         # add it to the array
                         _CONF_TREDLYFILE_URLREDIRECT[${arrayKey}]="${value}"
                     fi
-                    
+
                     ;;
                 url[1-999]Redirect[1-999]Cert)
                     # if the value is blank then set the value to "null" so that the numbering within the string is correct
@@ -350,7 +331,7 @@ function tredlyfile_parse() {
             esac
         fi
     done < $tredlyFile
-    
+
     # set some default values if they werent set
     if [[ -z "${_CONF_TREDLYFILE[containerVersion]}" ]]; then
         _CONF_TREDLYFILE[containerVersion]=1
@@ -373,7 +354,7 @@ function tredlyfile_parse() {
     if [[ -z "${_CONF_TREDLYFILE[maxRam]}" ]]; then
         _CONF_TREDLYFILE[maxRam]="unlimited"
     fi
-    
+
     # check if we have set "any" for any outgoing ports, if so then get rid of the rest of the ports as they are redundant
     if array_contains_substring _CONF_TREDLYFILE_TCPOUT[@] '^any$'; then
         _CONF_TREDLYFILE_TCPOUT=("any")
@@ -387,7 +368,7 @@ function tredlyfile_parse() {
     if array_contains_substring _CONF_TREDLYFILE_UDPIN[@] '^any$'; then
         _CONF_TREDLYFILE_UDPIN=("any")
     fi
-    
+
     ## Skip the validation if need be
     if [[ (-z "${2}") || ("${2}" = false) ]]; then
         tredlyfile_validate
@@ -431,7 +412,7 @@ function tredlyfile_validate() {
     if [[ ${#_CONF_TREDLYFILE_TCPIN[@]} -eq 0 ]] && [[ ${#_CONF_TREDLYFILE_UDPIN[@]} -eq 0 ]]; then
         exit_with_error "'tcpInPort' and 'udpInPort' are both missing or empty. At least one is required. Check Tredlyfile"
     fi
-    
+
     # Ensure that each urlredirect has its own certificate
     local _i
     local _redirectUrl
@@ -442,14 +423,14 @@ function tredlyfile_validate() {
         # and each redirect for this url
         IFS=' ' _redirectUrls=(${_CONF_TREDLYFILE_URLREDIRECT[${_i}]})
         IFS=' ' _redirectCerts=(${_CONF_TREDLYFILE_URLREDIRECTCERT[${_i}]})
-        
+
         IFS=' '
         # compare array lengths
         if [[ ${#_redirectUrls[@]} != ${#_redirectCerts[@]} ]]; then
             exit_with_error "url1: number of redirect urls does not match number of redirect certificates. If you are redirecting a HTTP URL, please include a blank definition."
         fi
     done
-    
+
     # ensure that HTTP or HTTPS ports are open if user specified a URL
     if [[ ${#_CONF_TREDLYFILE_URL[@]} -gt 0 ]]; then
         # loop over the urls
@@ -468,7 +449,7 @@ function tredlyfile_validate() {
             fi
         done
     fi
-    
+
     # make sure that a mount point is specified if persistent storage is selected
     #if [[ -n "${_CONF_TREDLYFILE[persistentStorageUUID]}" ]] && ! array_contains_substring _CONF_TREDLYFILE_STARTUP[@] "^persistentMountPoint="; then
         #exit_with_error "'persistentStorageUUID' is specified but no mount point specified. Please specify a mount point in your Tredlyfile."

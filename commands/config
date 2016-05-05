@@ -1,23 +1,4 @@
 #!/usr/bin/env bash
-##########################################################################
-# Copyright 2016 Vuid Pty Ltd 
-# https://www.vuid.com
-#
-# This file is part of tredly-build.
-#
-# tredly-build is free software: you can redistribute it and/or modify
-# it under the terms of the GNU General Public License as published by
-# the Free Software Foundation, either version 3 of the License, or
-# (at your option) any later version.
-#
-# tredly-build is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-# GNU General Public License for more details.
-#
-# You should have received a copy of the GNU General Public License
-# along with tredly-build.  If not, see <http://www.gnu.org/licenses/>.
-##########################################################################
 
 # commands require running as root
 cmn_assert_running_as_root
@@ -34,12 +15,12 @@ show_help "Available Commands:
 
     Examples:
         $(basename "$0") config container subnet 10.1.0.0/24
-    
+
     host
     ---------
     Description:
         Configures the Tredly host.
-        
+
     Subcommands:
         network - configures the given interface with ip address and gateway
 
@@ -47,7 +28,7 @@ show_help "Available Commands:
         $(basename "$0") config host network em0 192.168.150.20/24 192.168.156.254
         $(basename "$0") config host gateway 192.168.150.254
         $(basename "$0") config host hostname myhost
-        
+
 "
 
 case "${_SUBCOMMANDS[0]}" in
@@ -58,7 +39,7 @@ case "${_SUBCOMMANDS[0]}" in
                 if [[ ${#_SUBCOMMANDS[@]} -gt 3 ]]; then
                     exit_with_error "Too many arguments received."
                 fi
-                
+
                 # update the subnet config data
                 ip4_set_container_subnet "${_SUBCOMMANDS[2]}"
             ;;
@@ -74,7 +55,7 @@ case "${_SUBCOMMANDS[0]}" in
                 if [[ ${#_SUBCOMMANDS[@]} -gt 3 ]]; then
                     exit_with_error "Too many arguments received."
                 fi
-                
+
                 # update the hosts gateway
                 ip4_set_host_gateway "${_SUBCOMMANDS[2]}"
             ;;
@@ -83,7 +64,7 @@ case "${_SUBCOMMANDS[0]}" in
                 if [[ ${#_SUBCOMMANDS[@]} -gt 3 ]]; then
                     exit_with_error "Too many arguments received."
                 fi
-                
+
                 # update the hosts hostname
                 ip4_set_host_hostname "${_SUBCOMMANDS[2]}"
             ;;

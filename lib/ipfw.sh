@@ -1,23 +1,4 @@
 #!/usr/bin/env bash
-##########################################################################
-# Copyright 2016 Vuid Pty Ltd 
-# https://www.vuid.com
-#
-# This file is part of tredly-build.
-#
-# tredly-build is free software: you can redistribute it and/or modify
-# it under the terms of the GNU General Public License as published by
-# the Free Software Foundation, either version 3 of the License, or
-# (at your option) any later version.
-#
-# tredly-build is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-# GNU General Public License for more details.
-#
-# You should have received a copy of the GNU General Public License
-# along with tredly-build.  If not, see <http://www.gnu.org/licenses/>.
-##########################################################################
 
 # Checks that ipfw is installed
 function check_for_ipfw() {
@@ -30,7 +11,7 @@ function check_for_ipfw() {
 # Restarting is not ideal due to the flushing of rules - tcp sessions are disconnected
 function ipfw_restart() {
     service ipfw restart
-    
+
     return $?
 }
 
@@ -45,21 +26,21 @@ function ipfw_open_port() {
     local _ports=$(trim "${7}")
     local _options
     local _log
-    
+
     if [[ -z "${_ports}" ]]; then
         return ${E_ERROR}
     fi
-    
+
     if [[ "${_CONF_COMMON[firewallEnableLogging]}" == "yes" ]]; then
         _log="log"
     fi
-    
+
     if [[ "${_protocol}" == "tcp" ]]; then
         _options="setup keep-state"
     elif [[ "${_protocol}" == "udp" ]]; then
         _options="keep-state"
     fi
-    
+
     local _jailPreamble
 
     # if a uuid was received then update a jail, otherwise do the host
@@ -72,7 +53,7 @@ function ipfw_open_port() {
     return $?
 }
 
-# adds a string to an IPFW table 
+# adds a string to an IPFW table
 function ipfw_add_table_member() {
     local _uuid="${1}"
     local _tableNumber="${2}"
@@ -90,14 +71,14 @@ function ipfw_add_table_member() {
 function ipfw_delete_table() {
     local _uuid="${1}"
     local _tableNumber="${2}"
-    
+
     # if a uuid was received then update a jail, otherwise do the host
     if [[ -n ${_uuid} ]]; then
         _jailPreamble="jexec trd-${_uuid}"
     fi
     # live update the firewall
     eval ${_jailPreamble} ipfw -q table ${_tableNumber} flush
-    
+
     return $?
 }
 
@@ -105,13 +86,13 @@ function ipfw_delete_table() {
 function ipfw_container_update_containergroup_members() {
     local _containerGroup="${1}"
     local _partitionName="${2}"
-    
+
     # get a list of containers within this partition
     local _partitionContainers=$( zfs_get_all_containers "${_partitionName}" )
 
     local _dataset
     local _ip4
-    
+
     # loop over them, checking if they are a part of this group
     IFS=$'\n'
     for _dataset in ${_partitionContainers}; do
@@ -119,22 +100,22 @@ function ipfw_container_update_containergroup_members() {
         if [[ "${_containerGroup}" == $(zfs get -H -o value -r ${ZFS_PROP_ROOT}:containergroupname ${_dataset} ) ]]; then
             # is a group member, so add its dataset and ip to the list
             _containerGroupDatasets+=("${_dataset}")
-            
+
             local _ip4=$(zfs get -H -o value -r ${ZFS_PROP_ROOT}:ip4_addr ${_dataset} )
             _containerGroupIPs+=($( extractFromIP4Addr "${_ip4}" "ip4" ))
         fi
     done
-    
+
     # loop over the datasets, updating the firewall rules within those containers
     for _dataset in ${_containerGroupDatasets[@]}; do
-        
+
         # extract the uuid
         local _uuid=$( echo "${_dataset}" | rev | cut -d/ -f 1 | rev )
         local _containerMount="${TREDLY_PARTITIONS_MOUNT}/${_partitionName}/${TREDLY_CONTAINER_DIR_NAME}/${_uuid}"
-        
+
         # remove all lines relating to members table
         ipfw_delete_table "${_uuid}" "1"
-        
+
         # add in the new members data
         for _ip4 in ${_containerGroupIPs[@]}; do
             # loop over the ips and add the table members
@@ -151,43 +132,43 @@ function ipfw_container_set_partition_whitelist() {
     local _dataset="${ZFS_TREDLY_PARTITIONS_DATASET}/${_partitionName}/${TREDLY_CONTAINER_DIR_NAME}/${_uuid}"
     local _exitCode=0
     local _ip4
-    
+
     # get the partition whitelist ips
     IFS=$'\n' local _whitelist=($( zfs_get_custom_array "${TREDLY_PARTITIONS_MOUNT}/${_partitionName}" "${ZFS_PROP_ROOT}.ptn_ip4whitelist" ))
-    
+
     # remove all lines relating to partition whitelist table
     ipfw_delete_table "${_uuid}" "2"
     _exitCode=$(( ${_exitCode} & $? ))
-    
+
     # add in the whitelist data
     for _ip4 in ${_whitelist[@]}; do
         # loop over the ips and add the table members
         ipfw_add_table_member "${_uuid}" "2" "${_ip4}"
         _exitCode=$(( ${_exitCode} & $? ))
     done
-    
+
     return ${_exitCode}
 }
 
 # Updates all partition members whenever one of the members of the partition changes (create/destroy) or whitelist is modified
 function ipfw_container_update_partition_members() {
     local _partitionName="${1}"
-    
+
     # get a list of containers within this partition
     local _partitionContainers=$( zfs_get_all_containers "${_partitionName}" )
-    
+
     local _dataset
     local _exitCode=0
-    
+
     # get the partition whitelist ips
     IFS=$'\n' local _whitelist=($( zfs_get_custom_array "${TREDLY_PARTITIONS_MOUNT}/${_partitionName}" "${ZFS_PROP_ROOT}.ptn_ip4whitelist" ))
-    
+
     # loop over the partition members
     IFS=$'\n'
     for _dataset in ${_partitionContainers}; do
         # extract the uuid
         local _uuid=$( echo "${_dataset}" | rev | cut -d/ -f 1 | rev )
-        
+
         ipfw_container_set_partition_whitelist "${_uuid}" "${_partitionName}"
         _exitCode=$(( ${_exitCode} & $? ))
     done

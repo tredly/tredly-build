@@ -1,23 +1,4 @@
 #!/usr/bin/env bash
-##########################################################################
-# Copyright 2016 Vuid Pty Ltd 
-# https://www.vuid.com
-#
-# This file is part of tredly-build.
-#
-# tredly-build is free software: you can redistribute it and/or modify
-# it under the terms of the GNU General Public License as published by
-# the Free Software Foundation, either version 3 of the License, or
-# (at your option) any later version.
-#
-# tredly-build is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-# GNU General Public License for more details.
-#
-# You should have received a copy of the GNU General Public License
-# along with tredly-build.  If not, see <http://www.gnu.org/licenses/>.
-##########################################################################
 
 # lists the containers to stdout
 function list_containers() {
@@ -26,18 +7,18 @@ function list_containers() {
     local _containerString=''
     local _sortBy
     local _partitionName
-    
+
     local _datasets
-    
+
     # if no partition name was passed, then use default partition
     if [[ -n "${_partitionName}" ]]; then
         # make sure this is a real partition name
         if [[ $( get_partition_names | grep "^${_partitionName}$" | wc -l ) -eq 0 ]]; then
             exit_with_error "Partition \"${_partitionName}\" does not exist."
         fi
-        
+
         local _datasets=$( zfs_get_all_containers "${_partitionName}" )
-        
+
         # print out the header
         if [[ -z "${_containerGroupSearch}" ]]; then
             e_header "Containers in Partition ${_partitionName}"
@@ -53,7 +34,7 @@ function list_containers() {
             local _partitionDS=$( zfs_get_all_containers "${_partition}" )
             _datasets=$( echo -e "${_datasets}\n${_partitionDS}" )
         done
-        
+
         # print out the header
         e_header "Containers in All Partitions"
     fi
@@ -69,7 +50,7 @@ function list_containers() {
     for _dataset in ${_datasets}; do
         # whether or not to print out this line
         local _printLine="true"
-        
+
         # loop over the containers and get their details
         local _uuid=$( echo "${_dataset}" | rev | cut -d'/' -f 1 | rev )
         local _partition=$( zfs_get_property "${_dataset}" "${ZFS_PROP_ROOT}:partition" )
@@ -80,7 +61,7 @@ function list_containers() {
 
         local _ip4_addr=$( zfs_get_property "${_dataset}" "${ZFS_PROP_ROOT}:ip4_addr" )
         local _ip4=$( extractFromIP4Addr "${_ip4_addr}" "ip4" )
-        
+
         local _jid=$(jls -j trd-${_uuid} jid 2> /dev/null)
         local _state
         # if the jid is empty then the container is down
@@ -93,7 +74,7 @@ function list_containers() {
         if [[ -z "${_ip4}" ]]; then
             _ip4='-'
         fi
-        
+
         # replace empty strings with dashes
         if [[ -z "${_persistentStorageUUID}" ]]; then
             _persistentStorageUUID='-'
@@ -111,7 +92,7 @@ function list_containers() {
         if [[ -n "${_containerGroupSearch}" ]] && [[ "${_containerGroupSearch}" != "${_containerGroupName}" ]]; then
             _printLine="false"
         fi
-        
+
         if [[ "${_printLine}" == "true" ]]; then
             _containerString=$( echo "${_containerString}" ; printf "%s^%s^%s^%s^%s^%s^%s\n" \
                                                         "${_partition}" "${_containerGroupName}" "${_containerName}" "${_uuid}" \
@@ -144,12 +125,12 @@ function list_containers() {
         created)
             _containerString=$( echo "${_containerString}" | sort -t^ -k 8 )
         ;;
-        
+
         *)  # default - sort by partition then name
             _containerString=$( echo "${_containerString}" | sort -t^ -k 1 -k 3 )
         ;;
     esac
-    
+
     local _numContainers=0
     if [[ -n "${_containerString}" ]]; then
         _numContainers=$( echo "${_containerString}" | wc -l )

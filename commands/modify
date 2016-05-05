@@ -1,23 +1,4 @@
 #!/usr/bin/env bash
-##########################################################################
-# Copyright 2016 Vuid Pty Ltd 
-# https://www.vuid.com
-#
-# This file is part of tredly-build.
-#
-# tredly-build is free software: you can redistribute it and/or modify
-# it under the terms of the GNU General Public License as published by
-# the Free Software Foundation, either version 3 of the License, or
-# (at your option) any later version.
-#
-# tredly-build is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-# GNU General Public License for more details.
-#
-# You should have received a copy of the GNU General Public License
-# along with tredly-build.  If not, see <http://www.gnu.org/licenses/>.
-##########################################################################
 
 # commands require running as root
 cmn_assert_running_as_root
@@ -31,30 +12,30 @@ show_help "Available Commands:
     ---------
     Description:
         Modifies an existing container with the given options.
-    
+
     Options:
         CPU=            Set new CPU limit
         HDD=            Set new disk limit
         RAM=            Set new RAM limit
         ipv4Whitelist=  Set new ipv4 whitelist
-        
+
     Examples:
         $(basename "$0") modify container x5jR3nK1 RAM=1G
         $(basename "$0") modify container x5jR3nK1 CPU=1 HDD=20G RAM=1G
         $(basename "$0") modify container x5jR3nK1 ipv4Whitelist="10.0.0.0/16,10.1.0.1"
-        
+
     partition
     ---------
     Description:
         Modifies an existing partition with the given options.
-    
+
     Options:
         partitionName=  Set new parition name
         CPU=            Set new CPU limit
         HDD=            Set new disk limit
         RAM=            Set new RAM limit
         ipv4Whitelist=  Set new ipv4 whitelist
-        
+
     Examples:
         $(basename "$0") modify partition customer1
         $(basename "$0") modify partition customer1 paritionName=cust1 CPU=1 \
@@ -68,7 +49,7 @@ case "${_SUBCOMMANDS[0]}" in
         if [[ ${#_SUBCOMMANDS[@]} -gt 1 ]]; then
             exit_with_error "Too many arguments received."
         fi
-        
+
         init_select_default_release
     ;;
     container)
@@ -76,12 +57,12 @@ case "${_SUBCOMMANDS[0]}" in
         _maxHdd=''
         _maxRam=''
         _ipv4Whitelist=''
-        
+
         # ensure we received right number of args
         if [[ ${#_SUBCOMMANDS[@]} -gt 6 ]]; then
             exit_with_error "Too many arguments received."
         fi
-        
+
         # loop over the args received, populating the variables
         for i in {2..5}; do
             key="${_SUBCOMMANDS[${i}]%%=*}"
@@ -112,7 +93,7 @@ case "${_SUBCOMMANDS[0]}" in
                 ;;
             esac
         done
-        
+
         # modify the container
         container_modify "${_SUBCOMMANDS[1]}" "${_maxHdd}" "${_maxCpu}" "${_maxRam}" "${_ipv4Whitelist}"
     ;;
@@ -122,12 +103,12 @@ case "${_SUBCOMMANDS[0]}" in
         _partition_hdd=''
         _partition_ram=''
         _partition_ip4whitelist=''
-        
+
         # ensure we received right number of args
         if [[ ${#_SUBCOMMANDS[@]} -gt 6 ]]; then
             exit_with_error "Too many arguments received."
         fi
-    
+
         # loop over the args received, populating the variables
         for i in {2..6}; do
             key="${_SUBCOMMANDS[${i}]%%=*}"
@@ -161,7 +142,7 @@ case "${_SUBCOMMANDS[0]}" in
                 ;;
             esac
         done
-        
+
         # modify the partition
         partition_modify "${_SUBCOMMANDS[1]}" "${_partition_name}" "${_partition_hdd}" "${_partition_cpu}" "${_partition_ram}" "${_partition_ip4whitelist}"
     ;;

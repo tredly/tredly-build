@@ -1,23 +1,4 @@
 #!/usr/bin/env bash
-##########################################################################
-# Copyright 2016 Vuid Pty Ltd 
-# https://www.vuid.com
-#
-# This file is part of tredly-build.
-#
-# tredly-build is free software: you can redistribute it and/or modify
-# it under the terms of the GNU General Public License as published by
-# the Free Software Foundation, either version 3 of the License, or
-# (at your option) any later version.
-#
-# tredly-build is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-# GNU General Public License for more details.
-#
-# You should have received a copy of the GNU General Public License
-# along with tredly-build.  If not, see <http://www.gnu.org/licenses/>.
-##########################################################################
 
 # commands require running as root
 cmn_assert_running_as_root
@@ -41,24 +22,24 @@ show_help "Available Commands:
     Description:
         Destroy all containers on a given partition, but leave the partition
         intact.
-        
+
     Examples:
         $(basename "$0") destroy containers customer1
-        
+
     partition
     ---------
     Description:
-        Destroy a partition and all data held within. This includes all 
+        Destroy a partition and all data held within. This includes all
         containers.
-        
+
     Examples:
         $(basename "$0") destroy partition customer1
-        
+
     partitions
     ---------
     Description:
         Destroys all partitions on this host, and all data held within.
-        
+
     Examples:
         $(basename "$0") destroy partitions
 "
@@ -69,7 +50,7 @@ case "${_SUBCOMMANDS[0]}" in
         if [[ ${#_SUBCOMMANDS[@]} -gt 2 ]]; then
             exit_with_error "Too many arguments received."
         fi
-        
+
         # look up the partition from the uuid
         destroy_container "${_SUBCOMMANDS[1]}" "$( get_container_partition "${_SUBCOMMANDS[1]}" )"
     ;;
@@ -78,7 +59,7 @@ case "${_SUBCOMMANDS[0]}" in
         if [[ ${#_SUBCOMMANDS[@]} -gt 2 ]]; then
             exit_with_error "Too many arguments received."
         fi
-        
+
         partition_destroy_containers "${_SUBCOMMANDS[1]}"
     ;;
     partition)
@@ -86,7 +67,7 @@ case "${_SUBCOMMANDS[0]}" in
         if [[ ${#_SUBCOMMANDS[@]} -gt 2 ]]; then
             exit_with_error "Too many arguments received."
         fi
-        
+
         partition_destroy "${_SUBCOMMANDS[1]}" "true"
 
     ;;
@@ -95,7 +76,7 @@ case "${_SUBCOMMANDS[0]}" in
         if [[ ${#_SUBCOMMANDS[@]} -gt 1 ]]; then
             exit_with_error "Too many arguments received."
         fi
-        
+
         partition_destroy_all
     ;;
     *)

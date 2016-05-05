@@ -1,23 +1,4 @@
 #!/usr/bin/env bash
-##########################################################################
-# Copyright 2016 Vuid Pty Ltd 
-# https://www.vuid.com
-#
-# This file is part of tredly-build.
-#
-# tredly-build is free software: you can redistribute it and/or modify
-# it under the terms of the GNU General Public License as published by
-# the Free Software Foundation, either version 3 of the License, or
-# (at your option) any later version.
-#
-# tredly-build is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-# GNU General Public License for more details.
-#
-# You should have received a copy of the GNU General Public License
-# along with tredly-build.  If not, see <http://www.gnu.org/licenses/>.
-##########################################################################
 
 # commands require running as root
 cmn_assert_running_as_root
@@ -32,10 +13,10 @@ show_help "Available Commands:
     ---------
     Description:
         Validates a Tredlyfile.
-    
+
     Options:
         --path=         Provide an alternate path to a Tredlyfile
-        
+
     Examples:
         $(basename "$0") validate container
         $(basename "$0") validate container --path=/path/to/container
@@ -47,7 +28,7 @@ case "${_SUBCOMMANDS[0]}" in
         if [[ ${#_SUBCOMMANDS[@]} -gt 1 ]]; then
             exit_with_error "Too many arguments received."
         fi
-        
+
         # use path if we were given it, otherwise use cwd
         if [[ -n "${_FLAGS[path]}" ]]; then
             _CONTAINER_CWD="$(rtrim ${_FLAGS[path]} /)/"
@@ -55,10 +36,10 @@ case "${_SUBCOMMANDS[0]}" in
             # use pwd to get the absolute path to the current directory
             _CONTAINER_CWD="`pwd`/"
         fi
-        
+
         # set the Tredlyfile
         tredlyFile="$(rtrim ${_CONTAINER_CWD} '/' )/Tredlyfile"
-        
+
         if [[ ! -e "${tredlyFile}" ]]; then
             exit_with_error "No Tredlyfile found at ${tredlyFile}"
         fi

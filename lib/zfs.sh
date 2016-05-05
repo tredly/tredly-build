@@ -1,23 +1,4 @@
 #!/usr/bin/env bash
-##########################################################################
-# Copyright 2016 Vuid Pty Ltd 
-# https://www.vuid.com
-#
-# This file is part of tredly-build.
-#
-# tredly-build is free software: you can redistribute it and/or modify
-# it under the terms of the GNU General Public License as published by
-# the Free Software Foundation, either version 3 of the License, or
-# (at your option) any later version.
-#
-# tredly-build is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-# GNU General Public License for more details.
-#
-# You should have received a copy of the GNU General Public License
-# along with tredly-build.  If not, see <http://www.gnu.org/licenses/>.
-##########################################################################
 
 # Checks that ZFS is installed
 function check_for_zfs() {
@@ -30,7 +11,7 @@ function check_for_zfs() {
 function zfs_init() {
     # initialise the zfs datasets ready for use by tredly
     e_verbose "Initialising ZFS Datasets"
-    
+
     # only create datasets if they dont already exist
     if [[ $( zfs list "${ZFS_TREDLY_DATASET}" 2> /dev/null | wc -l ) -eq 0 ]]; then
         e_verbose "Creating ${ZFS_TREDLY_DATASET}"
@@ -52,13 +33,13 @@ function zfs_init() {
         e_verbose "Creating ${ZFS_TREDLY_LOG_DATASET}"
         zfs_create_dataset "${ZFS_TREDLY_LOG_DATASET}" "${TREDLY_LOG_MOUNT}"
     fi
-    
+
     # create the partitions dataset
     if [[ $( zfs list "${ZFS_TREDLY_PARTITIONS_DATASET}" 2> /dev/null | wc -l ) -eq 0 ]]; then
         e_verbose "Creating ${ZFS_TREDLY_PARTITIONS_DATASET}"
         zfs_create_dataset "${ZFS_TREDLY_PARTITIONS_DATASET}" "${TREDLY_PARTITIONS_MOUNT}"
     fi
-    
+
     # create a default partition under the partitions dataset
     if [[ $( zfs list "${ZFS_TREDLY_PARTITIONS_DATASET}/${TREDLY_DEFAULT_PARTITION}" 2> /dev/null | wc -l ) -eq 0 ]]; then
         partition_create "${TREDLY_DEFAULT_PARTITION}" "" "" "" "true"
@@ -66,7 +47,7 @@ function zfs_init() {
 }
 
 # gets a zfs property
-# args: 
+# args:
 # datasetname, property name
 # returns: value
 function zfs_get_property() {
@@ -77,7 +58,7 @@ function zfs_get_property() {
         echo "${value}"
         return ${E_SUCCESS}
     fi
-    
+
     return ${E_ERROR}
 }
 
@@ -101,11 +82,11 @@ function zfs_append_custom_array() {
     local _property="${2}"
     local _value="${3}"
     local _ifNotExists="${4}"
-    
+
     if [[ -z "${_ifNotExists}" ]]; then
         _ifNotExists="false"
     fi
-    
+
     local i=0
     # make sure we have a value to set
     if [[ -z "${_value}" ]]; then
@@ -118,13 +99,13 @@ function zfs_append_custom_array() {
         if [[ "${_ifNotExists}" == "true" ]]; then
             # check if it exists
             local _exists=$( echo "${_existing}" | awk '{print $2}' | grep "${_value}" | wc -l )
-            
+
             # if it exists then return
             if [[ ${_exists} -gt 0 ]]; then
                 return ${E_SUCCESS}
             fi
         fi
-        
+
         # get the index of the last item
         local i=$( echo "${_existing}" | tail -1 | awk '{print $1}' | cut -d : -f 2 )
 
@@ -165,17 +146,17 @@ function zfs_set_property() {
     local _dataset="${1}"
     local _property="${2}"
     local _value="${3}"
-    
+
     # make sure we have a value to set
     if [[ -z "${_value}" ]]; then
         return ${E_ERROR}
     fi
-    
+
     # set the property
     zfs set "${_property}=${_value}" ${_dataset}
-    
+
     local _exitCode=$?
-    
+
     return ${_exitCode}
 }
 
@@ -183,38 +164,38 @@ function zfs_set_property() {
 function zfs_create_dataset() {
     local _dataSet="${1}"
     local _mountPoint="${2}"
-    
+
     # first check that the dataset doesnt already exist
     _datasetLines=$( zfs list | grep "^${_dataSet} " | wc -l )
     if [[ ${_datasetLines} -gt 0 ]]; then
         return ${E_ERROR}
     fi
-    
+
     # create the zfs dataset and mount it
     zfs create -pu -o mountpoint="${_mountPoint}" "${_dataSet}"
     local _createExitCode=$?
-    
+
     if [[ ${_createExitCode} -ne 0 ]]; then
         return ${E_ERROR}
     fi
-    
+
     # now mount it
     zfs mount "${_dataSet}"
     local _mountExitCode=$?
-    
+
     if [[ ${_mountExitCode} -ne 0 ]]; then
         return ${E_ERROR}
     fi
-    
+
     return ${E_SUCCESS}
 }
 
 # destroys a ZFS dataset
 function zfs_destroy_dataset() {
     local _dataset="${1}"
-    
+
     zfs destroy "${_dataset}"
-    
+
     return $?
 }
 
@@ -222,7 +203,7 @@ function zfs_destroy_dataset() {
 function zfs_mount_nullfs_in_jail() {
     local _dataSet="${1}"
     local _mountPoint="${2}"
-    
+
     # create the directory for persistent storage within the container
     mkdir -p "${_mountPoint}"
 
@@ -242,14 +223,14 @@ function zfs_mount_nullfs_in_jail() {
 # detaches a zfs nullfs mount from a given JID
 function zfs_unmount_nullfs_in_jail() {
     local _mountPoint="${1}"
-    
+
     # unmount it from the container
     umount -f "${_mountPoint}"
 
     if [[ $? -ne 0 ]]; then
         return ${E_ERROR}
     fi
-    
+
     return ${E_SUCCESS}
 }
 
@@ -257,19 +238,19 @@ function zfs_unmount_nullfs_in_jail() {
 # args - partitionname
 function zfs_get_all_containers() {
     local _partitionName="${1}"
-    
+
     # if no partition name was passed, then list all partitions
     if [[ -z "${_partitionName}" ]]; then
         local _partitions=$( get_partition_names )
 
         IFS=$'\n'
         for _partitionName in ${_partitions}; do
-            zfs list -d3 -rH -o name ${ZFS_TREDLY_PARTITIONS_DATASET}/${_partitionName}/${TREDLY_CONTAINER_DIR_NAME}  | grep -Ev "${TREDLY_CONTAINER_DIR_NAME}\$|*./root" 
+            zfs list -d3 -rH -o name ${ZFS_TREDLY_PARTITIONS_DATASET}/${_partitionName}/${TREDLY_CONTAINER_DIR_NAME}  | grep -Ev "${TREDLY_CONTAINER_DIR_NAME}\$|*./root"
             _datasets=$( echo -e "${_datasets}\n${_partitionDS}" )
         done
-        
+
     else
-        zfs list -d3 -rH -o name ${ZFS_TREDLY_PARTITIONS_DATASET}/${_partitionName}/${TREDLY_CONTAINER_DIR_NAME}  | grep -Ev "${TREDLY_CONTAINER_DIR_NAME}\$|*./root" 
+        zfs list -d3 -rH -o name ${ZFS_TREDLY_PARTITIONS_DATASET}/${_partitionName}/${TREDLY_CONTAINER_DIR_NAME}  | grep -Ev "${TREDLY_CONTAINER_DIR_NAME}\$|*./root"
     fi
 }
 
@@ -278,12 +259,12 @@ function zfs_create_container() {
     local _containerName="${1}"
     local _partitionName="${2}"
     local _releaseName="${3}"
-    
+
     # make sure the release exists
     if [[ ! -d "${TREDLY_RELEASES_MOUNT}/${_releaseName}" ]]; then
         return ${E_FATAL}
     fi
-    
+
     # generate a 8 byte uuid for this container
     local _uuid=$( generate_short_uuid )
 
@@ -364,9 +345,9 @@ function zfs_create_container() {
         echo 'firewall_enable="YES"'
         echo "firewall_script=\"${CONTAINER_IPFW_SCRIPT}\""
         echo 'firewall_logging="YES"'
-        
+
     } >> ${_containerMount}/root/etc/rc.conf
-    
+
     # set up the IPFW script with a shebang
     {
         echo '#!/usr/bin/env sh'
@@ -399,25 +380,25 @@ function zfs_create_container() {
 function zfs_destroy_container() {
     local _partitionName="${1}"
     local _uuid="${2}"
-    
+
     # make sure the container has stopped
     jail -r "trd-${_uuid}" 2> /dev/null
-    
+
     # unmount all mount points used by this container
     if ! zfs_unmount_all "${_partitionName}" "${_uuid}"; then
         e_error "Failed to unmount all directories"
     fi
-    
+
     local _containerDataset="${ZFS_TREDLY_PARTITIONS_DATASET}/${_partitionName}/${TREDLY_CONTAINER_DIR_NAME}/${_uuid}"
     local _containerMountPoint="${TREDLY_PARTITIONS_MOUNT}/${_partitionName}/${TREDLY_CONTAINER_DIR_NAME}/${_uuid}"
-    
+
     if [[ -n "${_containerMountPoint}" ]]; then
         # destroy the dataset
         zfs destroy -rf "${_containerDataset}"
-    
+
         # unmount devfs
         umount -f -t devfs "${_containerMountPoint}/root/dev" 2> /dev/null
-    
+
         # remove the dir
         rm -rf "${_containerMountPoint}"
     fi
@@ -430,7 +411,7 @@ function zfs_mount_basedirs() {
     local _releaseName="${3}"
     local _dir
     local _mountpoint
-    
+
     # validate some input
     if [[ ${#_uuid} -eq 0 ]]; then
         return ${E_ERROR}
@@ -438,13 +419,13 @@ function zfs_mount_basedirs() {
     if [[ ${#_releaseName} -eq 0 ]]; then
         return ${E_ERROR}
     fi
-    
+
     # loop over basedirs and mount them
     for _dir in "${BASEDIRS[@]}"; do
         _mountpoint="${TREDLY_PARTITIONS_MOUNT}/${_partitionName}/${TREDLY_CONTAINER_DIR_NAME}/${_uuid}"
         # make sure it exists
         mkdir -p "${_mountpoint}/root/${_dir}" 2> /dev/null
-        
+
         # mount it
         mount -t nullfs -o ro "${TREDLY_RELEASES_MOUNT}/${_releaseName}/root/${_dir}" "${_mountpoint}/root/${_dir}"
 
@@ -453,7 +434,7 @@ function zfs_mount_basedirs() {
             return ${E_ERROR}
         fi
     done
-    
+
     return ${E_SUCCESS}
 }
 
@@ -462,21 +443,21 @@ function zfs_unmount_all() {
     local _partitionName="${1}"
     local _uuid="${2}"
     local _dir
-    
+
     # validate some input
     if [[ ${#_uuid} -eq 0 ]]; then
         return ${E_ERROR}
     fi
-    
+
     local _containerDataset="${ZFS_TREDLY_PARTITIONS_DATASET}/${_partitionName}/${TREDLY_CONTAINER_DIR_NAME}/${_uuid}"
     local _containerMountPoint="${TREDLY_PARTITIONS_MOUNT}/${_partitionName}/${TREDLY_CONTAINER_DIR_NAME}/${_uuid}"
-    
+
     # get a list of all mounted directories other than devfs
 
     local _mountedDirs=$( mount | grep ${_containerMountPoint} | grep -Ev "^devfs" | cut -d ' ' -f 3 )
 
     local _returnCode=0
-    
+
     IFS=$'\n'
     # loop over basedirs and mount them
     for _dir in ${_mountedDirs}; do
@@ -484,6 +465,6 @@ function zfs_unmount_all() {
 
         _returnCode=$(( ${_returnCode} & $? ))
     done
-    
+
     return ${_returnCode}
 }
