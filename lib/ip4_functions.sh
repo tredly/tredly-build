@@ -728,18 +728,7 @@ function ip4_set_container_subnet() {
     else
         e_error "Failed"
     fi
-<<<<<<< HEAD
 
-     # reload ipfw
-    e_note "Restarting Firewall"
-    if ipfw_restart; then
-        e_success "Success"
-    else
-        e_error "Failed"
-    fi
-}
-=======
-    
     e_note "Firewall requires restart. Please run \"service ipfw restart\" when you are ready. Please note this may disconnect your ssh session"
     
      # reload ipfw
@@ -750,4 +739,3 @@ function ip4_set_container_subnet() {
         #e_error "Failed"
     #fi
 }
->>>>>>> d844e7983651ce6d1434756cb0486b1a73c41880
