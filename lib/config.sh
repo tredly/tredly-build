@@ -390,10 +390,23 @@ function tredlyfile_validate() {
     ## Use 'required' from the common config to construct the required array
     local -a required
     IFS=',' read -a required <<< "${_CONF_COMMON[required]}"
+    
+    # extract the major and minor versions from tredly and tredlyfile version
+    local _regex="^([[:digit:]]+)\.([[:digit:]]+)\.([[:digit:]]+)"
+    [[ ${_VERSIONNUMBER} =~ ${_regex} ]]
+    
+    local _tredlyVersionMajor="${BASH_REMATCH[1]}"
+    local _tredlyVersionMinor="${BASH_REMATCH[2]}"
+    
+    # extract the major and minor versions from tredlyfile version
+    [[ ${_CONF_TREDLYFILE[versionNumber]} =~ ${_regex} ]]
+    local _fileVersionMajor="${BASH_REMATCH[1]}"
+    local _fileVersionMinor="${BASH_REMATCH[2]}"
 
-    # ensure the tredlyfile we are processing is the same version as this version of tredly
-    if [[ "${_VERSIONNUMBER}" != "${_CONF_TREDLYFILE[versionNumber]}" ]]; then
-        exit_with_error "Tredlyfile version ${_CONF_TREDLYFILE[versionNumber]} does not match this version of Tredly. Please update your Tredlyfile to version ${_VERSIONNUMBER} and try again."
+    # ensure the tredlyfile we are processing is the same version as this version of tredly (major + minor)
+    if [[ "${_tredlyVersionMajor}" != "${_fileVersionMajor}" ]] || \
+       [[ "${_tredlyVersionMinor}" != "${_fileVersionMinor}" ]]; then
+        exit_with_error "Tredlyfile version ${_CONF_TREDLYFILE[versionNumber]} does not match this version of Tredly. Please update your Tredlyfile to version ${_tredlyVersionMajor}.${_tredlyVersionMinor} and try again."
     fi
 
     ## Validate the contents. Check for required fields
