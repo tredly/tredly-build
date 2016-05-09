@@ -472,25 +472,59 @@ function tredlyfile_validate() {
     #if [[ -n "${_CONF_TREDLYFILE[persistentStorageUUID]}" ]] && ! array_contains_substring _CONF_TREDLYFILE_STARTUP[@] "^persistentMountPoint="; then
         #exit_with_error "'persistentStorageUUID' is specified but no mount point specified. Please specify a mount point in your Tredlyfile."
     #fi
+    IFS=','
+    ## Check that fileFolderMapping is set up correctly
+    for _item in ${_CONF_TREDLYFILE_STARTUP[@]}; do
+        # trim the item
+        _item="$( trim "${_item}" )"
 
-    ## Check that all the src paths in "fileFolderMapping" exist
-    if [[ -n "${_CONF_TREDLYFILE[fileFolderMapping]}" ]]; then
-        IFS=',' read -ra PAIR <<< "${_CONF_TREDLYFILE[fileFolderMapping]}"
-        regex="^([^ ]+)[[:space:]]([^ ]+)"
-        for i in "${PAIR[@]}"; do
-
-            i=$(trim "${i}")
-
-            [[ $i =~ $regex ]]
+        # make sure we're processing filefoldermappings
+        if [[ ${_item} =~ ^fileFolderMapping= ]]; then
+            # get rid of the filefoldermapping part
+            _item=="${_item#*=}"
+            _item=$( ltrim "${_item}" '=' )
+            _item=$( trim "${_item}" )
+            
+            regex="^([^ ]+)[[:space:]]([^ ]+)"
+            
+            [[ ${_item} =~ ${regex} ]]
             src="${BASH_REMATCH[1]}"
             dest=$(rtrim "${BASH_REMATCH[2]}" /)
 
-            ## Make sure the source file or folder exists
-            if [[ ! -e "${_CONTAINER_CWD}${src}" ]]; then
-                exit_with_error "Source '${src}' does not exist. Check Tredlyfile"
+            # make sure the filefoldermapping starts with partition/ (partition data) or / (container data)
+            if [[ ! "${src}" =~ ^partition/ ]] && [[ ! "${src}" =~ ^/ ]]; then
+                exit_with_error "fileFolderMapping ${src} ${dest} must start with / (container data) or partition/ (partition data)"
+            fi
+        fi
+    done
+    
+    
+    IFS=','
+    ## Check that certs are set up correctly
+    for _item in ${_CONF_TREDLYFILE_URLCERT[@]}; do
+        # trim the item
+        _item="$( trim "${_item}" )"
+
+        # make sure the filefoldermapping starts with partition/ (partition data) or / (container data)
+        if [[ ! "${_item}" =~ ^partition/ ]] && [[ ! "${_item}" =~ ^/ ]]; then
+            exit_with_error "urlCert ${_item} must start with / (container data) or partition/ (partition data)"
+        fi
+    done
+    
+    ## Check that certs are set up correctly
+    for _line in ${_CONF_TREDLYFILE_URLREDIRECTCERT[@]}; do
+        # split them out
+        IFS=' '
+        for _item in ${_line}; do
+            # trim the item
+            _item="$( trim "${_item}" )"
+
+            # make sure the filefoldermapping starts with partition/ (partition data) or / (container data)
+            if [[ ! "${_item}" =~ ^partition/ ]] && [[ ! "${_item}" =~ ^/ ]]; then
+                exit_with_error "urlRedirectCert ${_item} must start with / (container data) or partition/ (partition data)"
             fi
         done
-    fi
+    done
 
     return ${E_SUCCESS}
 }
