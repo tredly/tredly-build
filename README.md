@@ -1,7 +1,7 @@
 # Tredly
 
-- Version: 0.10.0
-- Date: May 5 2016
+- Version: 0.10.1
+- Date: May 9 2016
 - [Release notes](https://github.com/tredly/tredly-build/blob/master/CHANGELOG.md)
 - [GitHub repository](https://github.com/tredly/tredly-build)
 
@@ -13,7 +13,7 @@ This is a software package to simplify the usage and management of containers wi
 
 To install Tredly, your server must be running **FreeBSD 10.3 (or above) as Root-on-ZFS**. Further details can be found at the [Tredly Docs site](http://www.tredly.com/docs/?p=31).
 
-You must also have [Tredly Host 0.10.0](https://github.com/tredly/tredly-host) installed.
+You must also have [Tredly Host 0.10.0](https://github.com/tredly/tredly-host) or newer installed.
 
 ## Installation
 

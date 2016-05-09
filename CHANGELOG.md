@@ -2,6 +2,13 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
+## [0.10.1] - 2016-05-09
+#### Fixed
+- Fixed incomplete merge in `lib/ip4_functions.sh`
+
+#### Changed
+- Using Major.Minor instead of Major.Minor.Patch when comparing Tredly version against Tredlyfile version
+
 ## [0.10.0] - 2016-05-05
 #### Added
 - Added this CHANGELOG.md file
@@ -40,4 +47,5 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 #### Added
 - Initial release of Tredly
 
+[0.10.1]: https://github.com/tredly/tredly-build/compare/v0.10.0...v0.10.1
 [0.10.0]: https://github.com/tredly/tredly-build/compare/v0.9.0...v0.10.0
