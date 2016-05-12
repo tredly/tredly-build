@@ -450,7 +450,7 @@ function container_modify() {
                     # add it to the table
                     ipfw_add_table_member "${_uuid}" "${CONTAINER_IPFW_WL_TABLE_CONTAINER}" "${_ip4Whitelist}/${_cidrWhitelist}"
 
-                    _exitCode=$(( ${_exitCode} && $? ))
+                    _exitCode=$(( ${_exitCode} & $? ))
                 else
                     _exitCode=${E_ERROR}
                 fi
@@ -458,7 +458,7 @@ function container_modify() {
 
             if [[ ${_exitCode} -eq 0 ]]; then
                 e_success "Success"
-                _exitCode=$(( ${_exitCode} && $? ))
+                _exitCode=$(( ${_exitCode} & $? ))
             else
                 e_error "Failed"
                 _functionExitCode=${E_ERROR}
@@ -471,13 +471,13 @@ function container_modify() {
             # remove the old access file
             if [[ -f "${_accessFilePath}" ]]; then
                 nginx_clear_access_file "${_accessFilePath}"
-                _exitCode=$(( ${_exitCode} && $? ))
+                _exitCode=$(( ${_exitCode} & $? ))
             fi
 
             # recreate the file
             nginx_create_access_file "${_accessFilePath}" _whitelistArray[@]
 
-            _exitCode=$(( ${_exitCode} && $? ))
+            _exitCode=$(( ${_exitCode} & $? ))
 
             if [[ $? -eq 0 ]]; then
                 e_success "Success"
@@ -593,9 +593,10 @@ function container_create() {
 
     # make sure any sslcerts for layer 7 proxy actually exist
     local _cert _certList _src
+    local _i=1
 
     # Check that certs actually exist
-    for _cert in ${_CONF_TREDLYFILE_URLCERT[@]} ${_CONF_TREDLYFILE_URLREDIRECTCERT[@]}; do
+    for _cert in ${_CONF_TREDLYFILE_URLCERT[@]}; do
         if [[ -n "${_cert}" ]]; then
 
             # trim whitespace
@@ -612,15 +613,46 @@ function container_create() {
 
             # make sure directory exists
             if [[ ! -d "${_src}" ]]; then
-                exit_with_error "Could not find SSL Certificate ${_cert}"
+                exit_with_error "Could not find SSL Certificate ${_src} in url${_i}Cert="
             fi
             # make sure server.crt exists
             if [[ ! -f "${_src}/server.crt" ]]; then
-                exit_with_error "Could not find SSL Certificate ${_cert}/server.crt"
+                exit_with_error "Could not find SSL Certificate ${_src}/server.crt in url${_i}Cert="
             fi
             # make sure server.key exists
             if [[ ! -f "${_src}/server.key" ]]; then
-                exit_with_error "Could not find SSL Key ${_cert}/server.key"
+                exit_with_error "Could not find SSL Key ${_src}/server.key in url${_i}Cert="
+            fi
+        fi
+        _i=$(( _i + 1))
+    done
+    
+    for _cert in ${_CONF_TREDLYFILE_URLREDIRECTCERT[@]}; do
+        if [[ -n "${_cert}" ]]; then
+
+            # trim whitespace
+            _cert=$(trim "${_cert}")
+
+            # if first word of the source is "partition" then the file comes from the partition
+            if [[ "${_cert}" =~ ^partition/ ]]; then
+                local _certPath="$(rcut "${_cert}" "/" )"
+                _src="${TREDLY_PARTITIONS_MOUNT}/${_partitionName}/${TREDLY_PTN_DATA_DIR_NAME}/${_certPath}/"
+            else
+                # comes from container
+                _src="$(rtrim ${_CONTAINER_CWD} /)/${_cert}"
+            fi
+
+            # make sure directory exists
+            if [[ ! -d "${_src}" ]]; then
+                exit_with_error "Could not find SSL Certificate ${_src} in urlRedirectCert="
+            fi
+            # make sure server.crt exists
+            if [[ ! -f "${_src}/server.crt" ]]; then
+                exit_with_error "Could not find SSL Certificate ${_src}/server.crt in urlRedirectCert="
+            fi
+            # make sure server.key exists
+            if [[ ! -f "${_src}/server.key" ]]; then
+                exit_with_error "Could not find SSL Key ${_src}/server.key in urlRedirectCert="
             fi
         fi
     done
@@ -1596,7 +1628,7 @@ function destroy_container() {
                         # flag nginx to be reloaded
                         _reloadNginx="true"
                         # if this file no longer contains location defs then delete it
-                        if [[ $( cat "${_nginxServerNameDir}/${_file}" | grep 'location ' | wc -l ) -eq 0 ]]; then
+                        if [[ $( cat "${_nginxServerNameDir}/${_file}" | grep 'location ' | grep -v 'location /tredly_error_docs ' | wc -l ) -eq 0 ]]; then
                             # no location defs, go ahead and delete the file
                             e_verbose "No location defs found, deleting ${serverNameFullpath}..."
                             rm -f "${_nginxServerNameDir}/${_file}"
@@ -1662,7 +1694,7 @@ function destroy_container() {
         _reloadNginx="true"
 
         # if this file no longer contains location defs then delete it
-        if [[ $( cat "${_nginxServerNameDir}/${_file}" | grep 'location ' | wc -l ) -eq 0 ]]; then
+        if [[ $( cat "${_nginxServerNameDir}/${_file}" | grep 'location ' | grep -v 'location /tredly_error_docs ' | wc -l ) -eq 0 ]]; then
             # no location defs, go ahead and delete the file
             e_verbose "No location defs found, deleting ${serverNameFullpath}..."
             rm -f "${_nginxServerNameDir}/${_file}"

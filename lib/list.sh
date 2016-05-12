@@ -125,7 +125,6 @@ function list_containers() {
         created)
             _containerString=$( echo "${_containerString}" | sort -t^ -k 8 )
         ;;
-
         *)  # default - sort by partition then name
             _containerString=$( echo "${_containerString}" | sort -t^ -k 1 -k 3 )
         ;;

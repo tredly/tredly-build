@@ -13,27 +13,36 @@ function nginx_create_servername_file() {
     local _subdomain="${1}"
     local _filePath="${2}"
     local _certificate="${3}"
+    local _errorDocs="${4}"
 
     # output the config to the file
     {
+        echo "server {"
+        echo "    server_name ${_subdomain};"
         # if a certificate was received then include https
         if [[ -n "${_certificate}" ]]; then
             # HTTPS
-            echo "server {"
             echo "    listen ${_CONF_COMMON[httpproxy]}:443 ssl;"
-            echo "    server_name ${_subdomain};"
             # enable ssl and include the cert/key
             echo "    ssl on;"
             echo "    ssl_certificate ssl/${_certificate}/server.crt;"
             echo "    ssl_certificate_key ssl/${_certificate}/server.key;"
-            echo "}"
         else
             # HTTP
-            echo "server {"
             echo "    listen ${_CONF_COMMON[httpproxy]}:80;"
-            echo "    server_name ${_subdomain};"
-            echo "}"
         fi
+        
+        if [[ "${_errorDocs}" == "true" ]]; then
+            # insert the location block for error files if it was requested
+            echo "    location /tredly_error_docs {"
+            echo "        alias /usr/local/etc/nginx/tredly_error_docs;"
+            echo "        log_not_found off;"
+            echo "        access_log off;"
+            echo "    }"
+            echo "    error_page 404 /tredly_error_docs/404.html;"
+        fi
+        
+        echo "}"
     } > "${_filePath}"
 
     return $?
@@ -283,7 +292,7 @@ function nginx_add_url() {
         # check if the https server_name file exists
         if [[ ! -f "${NGINX_SERVERNAME_DIR}/https-${_filename}" ]]; then
             # create it
-            if ! nginx_create_servername_file "${_urlDomain}" "${NGINX_SERVERNAME_DIR}/https-${_filename}" "${_urlCert}"; then
+            if ! nginx_create_servername_file "${_urlDomain}" "${NGINX_SERVERNAME_DIR}/https-${_filename}" "${_urlCert}" "true"; then
                 e_error "Failed to create HTTPS proxy servername file ${NGINX_SERVERNAME_DIR}/https-${_filename}"
             fi
         fi
@@ -337,7 +346,7 @@ function nginx_add_url() {
         # check if the https server_name file exists
         if [[ ! -f "${NGINX_SERVERNAME_DIR}/http-${_filename}" ]]; then
             # create it
-            if ! nginx_create_servername_file "${_urlDomain}" "${NGINX_SERVERNAME_DIR}/http-${_filename}" "${_urlCert}"; then
+            if ! nginx_create_servername_file "${_urlDomain}" "${NGINX_SERVERNAME_DIR}/http-${_filename}" "${_urlCert}" "true"; then
                 e_error "Failed to create HTTP proxy servername file ${NGINX_SERVERNAME_DIR}/http-${_filename}"
             fi
         fi
@@ -420,7 +429,7 @@ function nginx_add_redirect_url() {
     # check if the https server_name file exists
     if [[ ! -f "${NGINX_SERVERNAME_DIR}/${_servernameFilename}" ]]; then
         # create it
-        if ! nginx_create_servername_file "${_urlFromDomain}" "${NGINX_SERVERNAME_DIR}/${_servernameFilename}" "${_urlFromCert}"; then
+        if ! nginx_create_servername_file "${_urlFromDomain}" "${NGINX_SERVERNAME_DIR}/${_servernameFilename}" "${_urlFromCert}" "false"; then
             return ${E_ERROR}
         fi
     fi
@@ -450,7 +459,7 @@ function nginx_copy_cert() {
         local _certPath="$(rcut "${_cert}" "/" )"
         _src="${TREDLY_PARTITIONS_MOUNT}/${_partitionName}/${TREDLY_PTN_DATA_DIR_NAME}/${_certPath}/"
     else
-        _src="$(rtrim ${_CONTAINER_CWD} /)/${_cert}"
+        _src="$(rtrim ${_CONTAINER_CWD} /)/$( ltrim ${_cert} / )/"
     fi
 
     # trim urlcert down to the last dir name
@@ -458,6 +467,7 @@ function nginx_copy_cert() {
 
     # form a full path
     local _certDestDir="${NGINX_SSL_DIR}/${_partitionName}/${_cert}"
+    
     # check if directory already exists
     if [[ -d "${_certDestDir}" ]]; then
         # it does - we dont want to overwrite this cert so return
@@ -465,21 +475,21 @@ function nginx_copy_cert() {
     else
         # create the dir
         mkdir -p ${_certDestDir}
-
+        
         # copy the files across
         copy_files "${_src}" "${_certDestDir}"
         _exitCode=$?
-
+        
         # change ownership of ssl cert and key
         chown -R www "${_certDestDir}"
-        _exitCode=$(( ${_exitCode} && $? ))
+        _exitCode=$(( ${_exitCode} & $? ))
 
         chgrp -R www "${_certDestDir}"
-        _exitCode=$(( ${_exitCode} && $? ))
+        _exitCode=$(( ${_exitCode} & $? ))
 
         # only allow www to read the private key
         chmod 600 "${_certDestDir}/server.key"
-        _exitCode=$(( ${_exitCode} && $? ))
+        _exitCode=$(( ${_exitCode} & $? ))
 
         return ${_exitCode}
     fi

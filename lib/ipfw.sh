@@ -67,6 +67,40 @@ function ipfw_add_table_member() {
     eval ${_jailPreamble} ipfw -q table ${_tableNumber} add ${_ip}
 }
 
+# Creates/overwrites an ipfw table rule within a file and then runs that script
+function ipfw_add_persistent_table_member() {
+    local _uuid="${1}"
+    local _tableNumber="${2}"
+    local _ip="${3}"
+    
+    local _exitCode=0
+    
+    # if a uuid was received then update a jail, otherwise do the host
+    if [[ -n ${_uuid} ]]; then
+        _jailPreamble="jexec trd-${_uuid}"
+    fi
+    
+    # empty the file
+    echo "#!/usr/bin/env bash" > /usr/local/etc/ipfw.table.${_tableNumber}
+    
+    local _ip4
+    IFS=","
+    for _ip4 in ${_ip}; do
+        # update the table file
+        echo "ipfw -q table ${_tableNumber} add ${_ip4}" >> /usr/local/etc/ipfw.table.${_tableNumber}
+        _exitCode=$(( ${_exitCode} & $? ))
+    done
+    
+    # check if ipfw module is loaded
+    if [[ $( kldstat | grep 'ipfw.ko$' | wc -l ) -ne 0 ]]; then
+        # run the script
+        sh /usr/local/etc/ipfw.table.${_tableNumber}
+        _exitCode=$(( ${_exitCode} & $? ))
+    fi
+
+    return ${_exitCode}
+}
+
 # Deletes an IPFW table
 function ipfw_delete_table() {
     local _uuid="${1}"
