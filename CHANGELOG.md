@@ -2,6 +2,21 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
+## [0.10.2] - 2016-05-12
+#### Added
+- Added host wide default 404 page
+- Added extra checks to prevent error messages on the command line when ipfw, unbound or vimage is not loaded.
+- Added function to handle IPFW tables preserved across reboots, and doco for reserved ip addresses
+
+#### Changed
+- Matching Tredly version to Tredlyfile version on `major.minor` only rather than `major.minor.patch` (#30)
+- Improved validation and error reporting of `urlCerts`, `fileFolderMapping` and `urlRedirectCerts`
+- Moved config to Tredly-host
+- Moved to tables instead of variables for IPFW wherever possible
+
+#### Fixed
+- Copying `sslCerts` from container directory is fixed (#28)
+
 ## [0.10.1] - 2016-05-09
 #### Fixed
 - Fixed incomplete merge in `lib/ip4_functions.sh`
@@ -47,5 +62,6 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 #### Added
 - Initial release of Tredly
 
+[0.10.2]: https://github.com/tredly/tredly-build/compare/v0.10.1...v0.10.2
 [0.10.1]: https://github.com/tredly/tredly-build/compare/v0.10.0...v0.10.1
 [0.10.0]: https://github.com/tredly/tredly-build/compare/v0.9.0...v0.10.0
