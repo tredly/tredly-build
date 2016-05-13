@@ -112,10 +112,10 @@ maxRam=
 #          urlRedirect1=https://otherexample.com
 #
 # 3. urlRedirectCert [optional]
-#     SSL certificate to apply to a http redirect "from" URL. Due to the HTTPS 
+#     SSL certificate to apply to a http redirect "from" URL. Due to the HTTPS
 #     handshake occurring before the redirect message is sent to the browser,
-#     you must specify a certificate for the redirect "from" URL. For example 
-#     if you specify url1Redirect=https://www2.example.com then you must specify 
+#     you must specify a certificate for the redirect "from" URL. For example
+#     if you specify url1Redirect=https://www2.example.com then you must specify
 #     a certificate for this URL to use.
 #     e.g. urlRedirectCert=star.example.com
 #
@@ -142,27 +142,24 @@ maxRam=
 #     Allowed values: value between 1m and 2g
 #     Default: 1m
 #     e.g. urlMaxFileSize1=10m
+
+# Example URL 1
+#url1=www.example.com/blah
+#url1Cert=star.example.com
+#url1Redirect1=http://www2.example.com
+#url1Redirect1=
+#url1Redirect2=https://www3.example.com
+#url1Redirect2Cert=star.example.com
+#url1Websocket=
+#url1MaxFileSize=10m
 #
-# ***** Below is a example of 2 different URLs *****
+## Example URL 2
+#url2=www2.example.com/blah2
+#url2Redirect=
+#url2Cert=
+#url2Websocket=
+#url2MaxFileSize=
 
-# URL 1
-url1=www.example.com/blah
-url1Cert=star.example.com
-url1Redirect1=http://www2.example.com
-url1Redirect1=
-url1Redirect2=https://www3.example.com
-url1Redirect2Cert=star.example.com
-url1Websocket=
-url1MaxFileSize=10m
-
-# URL 2
-url2=www2.example.com/blah2
-url2Redirect=
-url2Cert=
-url2Websocket=
-url2MaxFileSize=
-
-# ***** End Example URL Section *****
 
 ## IPv4 Proxy (layer4) [optional]
 # Layer4 proxy allows the container to use the Hosts external IP and forward
@@ -180,16 +177,17 @@ layer4Proxy=
 # containers or the outside world.
 # Allowed values: integer, any (all ports) or blank
 # One port per line
-# ** Note: tcpOutPort=80, tcpOutPort=443 and udpOutPort=53 are required values.
-# ** Note: if your container services a URL make sure tcpInPort=80 or
+# ** Note: tcpOutPort=80, tcpOutPort=443 and udpOutPort=53 are set by default.
+# ** Note: If your container services a URL make sure tcpInPort=80 and/or
 # tcpInPort=443 is set so this containers firewall is open on this port and can
-# receive traffic from the internal HTTP proxy.
-tcpInPort=80
-tcpInPort=443
+# receive traffic from the internal HTTP proxy. (See example below)
+#tcpInPort=80
+#tcpInPort=443
+tcpInPort=
+tcpInPort=
 udpInPort=
-tcpOutPort=80
-tcpOutPort=443
-udpOutPort=53
+tcpOutPort=
+udpOutPort=
 
 ## IPv4 Whitelist [optional]
 # Restrict traffic to this container to an ip address or network range.
@@ -208,7 +206,7 @@ customDNS=
 
 ################################################################################
 ### Custom Commands and Operations
-## Each command or operation in the section is run in order. All are
+# Each command or operation in the section is run in order. All are
 # optional and each must be placed on a new line. The available options are:
 #
 # 1. onStart
@@ -235,36 +233,40 @@ customDNS=
 #       e.g. fileFolderMapping= postgresql.conf /usr/local/pgsql/data/
 #            fileFolderMapping=partition/mySSLCerts /usr/local/etc/nginx/ssl
 #
-# ***** Below is a example of a typical Nginx and PostgreSQL install *****
 
-onStart= mkdir /usr/local/etc/example/sslFolder
+## ON CREATE COMMANDS
+# These commands (onStart, installPackage and fileFolderMapping) make up the
+# "On Create" block of commands. When a container is built, these commands
+# and operations are executed. Note that order is important. Below are some
+# examples of commands and operations used to create a PostgreSQL container.
 
-fileFolderMapping=partition/mySSLCerts/star.example.com /usr/local/etc/sslFolder
-onStart= mkdir /usr/local/pgsql
-onStart= mkdir /usr/local/pgsql/data
-onStart= mkdir /usr/local/pgsql/data/ssl
+#onStart= mkdir /usr/local/etc/example/sslFolder
+#
+#fileFolderMapping=partition/mySSLCerts/star.example.com /usr/local/etc/sslFolder
+#onStart= mkdir /usr/local/pgsql
+#onStart= mkdir /usr/local/pgsql/data
+#onStart= mkdir /usr/local/pgsql/data/ssl
+#
+#installPackage=nginx
+#installPackage=postgreSQL
+#
+#fileFolderMapping= postgresql.conf /usr/local/pgsql/data/
+#fileFolderMapping= pg_hba.conf /usr/local/pgsql/data/
+#fileFolderMapping= recovery.done /usr/local/pgsql/data/
+#fileFolderMapping= server.key /usr/local/pgsql/data/ssl/
+#fileFolderMapping= server.cert /usr/local/pgsql/data/ssl/
+#fileFolderMapping= root.crt /usr/local/pgsql/data/ssl/
+#
+#onStart= sysrc postgresql_enable=yes
+#onStart=/ usr/local/etc/rc.d/postgresql initdb
+#
+#installPackage=unbound
+#
+## PostgreSQL requires the server key to be installed before starting
+#onStart= chmod 0600 /usr/local/pgsql/data/ssl/server.key
+#onStart= service postgresql start
 
-installPackage=nginx
-installPackage=postgreSQL
-
-fileFolderMapping= postgresql.conf /usr/local/pgsql/data/
-fileFolderMapping= pg_hba.conf /usr/local/pgsql/data/
-fileFolderMapping= recovery.done /usr/local/pgsql/data/
-fileFolderMapping= server.key /usr/local/pgsql/data/ssl/
-fileFolderMapping= server.cert /usr/local/pgsql/data/ssl/
-fileFolderMapping= root.crt /usr/local/pgsql/data/ssl/
-
-onStart= sysrc postgresql_enable=yes
-onStart=/ usr/local/etc/rc.d/postgresql initdb
-
-installPackage=unbound
-
-# PostgreSQL requires the server key to be installed before starting
-onStart= chmod 0600 /usr/local/pgsql/data/ssl/server.key
-onStart= service postgresql start
-
+## ON STOP COMMANDS
 # Commands run when container stops or is terminated (one per line, optional)
-onStop= service postgresql stop
-onStop= exampleCommand2
-
-# ***** End Example Section *****
+#onStop= service postgresql stop
+#onStop= exampleCommand2
