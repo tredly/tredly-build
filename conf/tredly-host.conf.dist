@@ -8,22 +8,22 @@ wif=bridge0
 lif=bridge1
 
 # The physical interface that holds an ip address
-wifPhysical=bce0
+wifPhysical=
 
 ## The network and netmask for the lif, used for assigning ip addresses
-lifNetwork=10.0.0.0/16
+lifNetwork=
 
 ## Nameservers
-dns=10.0.255.254
+dns=
 
 ## HTTP Proxy Identifier
-httpproxy=10.0.255.254
+httpproxy=
 
 ## TLD of your servers - used for DNS entries
 tld=example.com
 
 ## Default route for your private container network
-vnetdefaultroute=10.0.255.254
+vnetdefaultroute=
 
 ## Adds logging to the firewall rules
 ## Set this to 'yes' to enable (case sensitive). Anything else is 

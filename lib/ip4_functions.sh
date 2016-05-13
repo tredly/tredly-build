@@ -468,8 +468,10 @@ function ip4_set_host_network() {
     fi
 
     # make sure the new ip address doesnt fall within the container subnet
-    if ip4_is_network_member "${_ip4}" "${_CONF_COMMON[lifNetwork]}/${_CONF_COMMON[lifCIDR]}"; then
-        exit_with_error "IP ${_ip4} falls within your container subnet. If you wish to use this ip address, please change your container subnet"
+    if [[ -n "${_CONF_COMMON[lifNetwork]}" ]]; then
+        if ip4_is_network_member "${_ip4}" "${_CONF_COMMON[lifNetwork]}/${_CONF_COMMON[lifCIDR]}"; then
+            exit_with_error "IP ${_ip4} falls within your container subnet. If you wish to use this ip address, please change your container subnet"
+        fi
     fi
 
     local _ip4Subnet=$( cidr2netmask "${_ip4CIDR}" )
