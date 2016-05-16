@@ -126,6 +126,7 @@ function ipfw_container_update_containergroup_members() {
 
     local _dataset
     local _ip4
+    local _containerGroupDatasets
 
     # loop over them, checking if they are a part of this group
     IFS=$'\n'
@@ -142,7 +143,6 @@ function ipfw_container_update_containergroup_members() {
 
     # loop over the datasets, updating the firewall rules within those containers
     for _dataset in ${_containerGroupDatasets[@]}; do
-
         # extract the uuid
         local _uuid=$( echo "${_dataset}" | rev | cut -d/ -f 1 | rev )
         local _containerMount="${TREDLY_PARTITIONS_MOUNT}/${_partitionName}/${TREDLY_CONTAINER_DIR_NAME}/${_uuid}"
