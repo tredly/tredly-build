@@ -2,6 +2,14 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
+## [0.10.3] - 2016-05-13
+#### Fixed
+- Removed hard coded values from `tredly-host.conf` (tredly/tredly-build#38)
+
+#### Changes
+- Better checking on whether IP falls in subnet (If `lifNetwork` is blank then checks are not conducted).
+- Updated Tredlyfile.sample documentation
+
 ## [0.10.2] - 2016-05-12
 #### Added
 - Added host wide default 404 page
@@ -62,6 +70,7 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 #### Added
 - Initial release of Tredly
 
+[0.10.3]: https://github.com/tredly/tredly-build/compare/v0.10.2...v0.10.3
 [0.10.2]: https://github.com/tredly/tredly-build/compare/v0.10.1...v0.10.2
 [0.10.1]: https://github.com/tredly/tredly-build/compare/v0.10.0...v0.10.1
 [0.10.0]: https://github.com/tredly/tredly-build/compare/v0.9.0...v0.10.0

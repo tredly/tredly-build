@@ -1,7 +1,7 @@
 # Tredly
 
-- Version: 0.10.2
-- Date: May 12 2016
+- Version: 0.10.3
+- Date: May 13 2016
 - [Release notes](https://github.com/tredly/tredly-build/blob/master/CHANGELOG.md)
 - [GitHub repository](https://github.com/tredly/tredly-build)
 
@@ -21,10 +21,10 @@ Tredly-Build is installed automatically when you install [Tredly Host](https://g
 
 ### Via Git
 
-1. Clone the Tredly-Build repository to the desired location (we suggest `/usr/local/etc`):
+1. Clone the Tredly-Build repository to the desired location (we suggest `/tmp`):
 
 ```
-    git clone git://github.com/tredly/tredly-build.git /usr/local/etc
+    git clone git://github.com/tredly/tredly-build.git /tmp
     cd /usr/local/etc/tredly-build
 ```
 
