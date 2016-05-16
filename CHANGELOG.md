@@ -2,6 +2,12 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
+## [0.10.4] - 2016-05-16
+#### Fixed
+- Removed semicolon from dns servers within container in `/etc/resolv.conf` (tredly/tredly-build#41)
+- Fixed IP being referenced as partition name for container group members
+- Fixed `containergroup` array. Now local instead of global. (Potential fix for tredly/tredly-host#36)
+
 ## [0.10.3] - 2016-05-13
 #### Fixed
 - Removed hard coded values from `tredly-host.conf` (tredly/tredly-build#38)
@@ -70,6 +76,7 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 #### Added
 - Initial release of Tredly
 
+[0.10.4]: https://github.com/tredly/tredly-build/compare/v0.10.3...v0.10.4
 [0.10.3]: https://github.com/tredly/tredly-build/compare/v0.10.2...v0.10.3
 [0.10.2]: https://github.com/tredly/tredly-build/compare/v0.10.1...v0.10.2
 [0.10.1]: https://github.com/tredly/tredly-build/compare/v0.10.0...v0.10.1
