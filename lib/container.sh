@@ -86,7 +86,7 @@ function container_start() {
     fi
 
     for _dns in "${_dnsServers[@]}"; do
-        echo "nameserver ${_dns};" >> "${_containerPath}/root/etc/resolv.conf"
+        echo "nameserver ${_dns}" >> "${_containerPath}/root/etc/resolv.conf"
     done
 
     # add self into /etc/hosts
@@ -963,7 +963,7 @@ function container_create() {
         else
             if [[ -n "${_CONF_TREDLYFILE[containerGroup]}" ]]; then
                 # add this to the table members for all members of this containergroup
-                ipfw_container_update_containergroup_members "${_CONF_TREDLYFILE[containerGroup]}" "${_ip4}"
+                ipfw_container_update_containergroup_members "${_CONF_TREDLYFILE[containerGroup]}" "${_partitionName}"
             fi
 
             # include the rules for ipv4 whitelist even if the table is empty
@@ -1895,7 +1895,8 @@ function destroy_container() {
     # update the firewall rules for all containers within this container group if specified
     if [[ "${_containerGroupName}" != '-' ]] && [[ -n "${_containerGroupName}" ]]; then
         e_note "Updating container group firewall rules"
-        ipfw_container_update_containergroup_members "${_containerGroupName}" "${_ip4}"
+        
+        ipfw_container_update_containergroup_members "${_containerGroupName}" "${_partitionName}"
         if [[ $? -eq 0 ]]; then
             e_success "Success"
         else
