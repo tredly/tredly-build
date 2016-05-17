@@ -1341,7 +1341,8 @@ function container_create() {
             fi
             # and the redirects to it
             IFS=' '
-            n=1
+            local n=1
+            local i=0
 
             local _redirectUrlCert
             for _redirectUrl in ${_CONF_TREDLYFILE_URLREDIRECT[$(( ${i} + 1 ))]}; do
@@ -1351,8 +1352,8 @@ function container_create() {
 
                 # trim urlcert down to the last dir name and add partition name so that partitions dont step on each others certs
                 if [[ -n "${_redirectUrlCert}" ]]; then
-                    # trim out the string until we have the last directory
-                    _redirectUrlCert="$(echo "${_redirectUrlCert}" | rev | cut -d '/' -f 1 | rev )"
+                    # add the partition and trim out the string until we have the last directory
+                    _redirectUrlCert="${_partitionName}/$(echo "${_redirectUrlCert}" | rev | cut -d '/' -f 1 | rev )"
                 fi
 
                 # set the url cert as blank if it was set to null
@@ -1368,7 +1369,7 @@ function container_create() {
 
                 n=$(( ${n} + 1 ))
             done
-
+            i=$(( ${i} + 1 ))
         done
 
         # reload nginx config

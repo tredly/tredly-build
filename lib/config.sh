@@ -190,7 +190,7 @@ function tredlyfile_parse() {
                     ;;
                 url[1-999]Cert)
                     # add it to the array
-                    _CONF_TREDLYFILE_URLCERT[${arrayKey}]="${value}"
+                    _CONF_TREDLYFILE_URLCERT[${arrayKey}]="$( rtrim "${value}" '/' )"
                     ;;
                 url[1-999]Websocket)
                     # add it to the array
@@ -224,10 +224,10 @@ function tredlyfile_parse() {
                     # we can have multiple urlredirects per url so handle that with space separated string since space is encoded to %20 in urls
                     if [[ -n "${_CONF_TREDLYFILE_URLREDIRECT[${arrayKey}]}" ]]; then
                         # concatenate the urls
-                        _CONF_TREDLYFILE_URLREDIRECT[${arrayKey}]="${_CONF_TREDLYFILE_URLREDIRECT[${arrayKey}]} ${value}"
+                        _CONF_TREDLYFILE_URLREDIRECT[${arrayKey}]="${_CONF_TREDLYFILE_URLREDIRECT[${arrayKey}]} $( rtrim "${value}" '/' )"
                     else
                         # add it to the array
-                        _CONF_TREDLYFILE_URLREDIRECT[${arrayKey}]="${value}"
+                        _CONF_TREDLYFILE_URLREDIRECT[${arrayKey}]="$( rtrim "${value}" '/' )"
                     fi
 
                     ;;
