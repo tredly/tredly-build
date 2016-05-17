@@ -2,6 +2,10 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
+## [0.10.5] - 2016-05-17
+#### Fixed
+- `urlRedirect` and `urlCert` bugfix - strip trailing slash (Closes tredly/tredly-host#36)
+
 ## [0.10.4] - 2016-05-16
 #### Fixed
 - Removed semicolon from dns servers within container in `/etc/resolv.conf` (tredly/tredly-build#41)
@@ -76,6 +80,7 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 #### Added
 - Initial release of Tredly
 
+[0.10.5]: https://github.com/tredly/tredly-build/compare/v0.10.4...v0.10.5
 [0.10.4]: https://github.com/tredly/tredly-build/compare/v0.10.3...v0.10.4
 [0.10.3]: https://github.com/tredly/tredly-build/compare/v0.10.2...v0.10.3
 [0.10.2]: https://github.com/tredly/tredly-build/compare/v0.10.1...v0.10.2
