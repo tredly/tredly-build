@@ -380,6 +380,7 @@ function nginx_add_redirect_url() {
     local _redirectFrom="${1}"
     local _redirectTo="${2}"
     local _redirectFromCert="${3}"
+    local _partitionName="${4}"
 
     local _urlFromCert _urlFromDomain _urlFromDirectory _transformedRedirectFrom
 
@@ -424,6 +425,11 @@ function nginx_add_redirect_url() {
         _urlFromCert="${_redirectFromCert}"
     else
         _servernameFilename="http-${_servernameFilename}"
+    fi
+
+    # add the partition name to the cert path if we have a certificate
+    if [[ -n "${_urlFromCert}" ]]; then
+        _urlFromCert="${_partitionName}/${_urlFromCert}"
     fi
 
     # check if the https server_name file exists
