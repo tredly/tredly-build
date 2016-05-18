@@ -2,9 +2,14 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
+## [0.10.6] - 2016-05-18
+#### Fixed
+- Fix for redirect ssl cert cleanup (tredly/tredly-build#44)
+- Fix for redirect location block preservation between replacement (tredly/tredly-build#47)
+
 ## [0.10.5] - 2016-05-17
 #### Fixed
-- `urlRedirect` and `urlCert` bugfix - strip trailing slash (Closes tredly/tredly-host#36)
+- `urlRedirect` and `urlCert` bugfix - strip trailing slash (tredly/tredly-host#36)
 
 ## [0.10.4] - 2016-05-16
 #### Fixed
@@ -80,6 +85,7 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 #### Added
 - Initial release of Tredly
 
+[0.10.6]: https://github.com/tredly/tredly-build/compare/v0.10.5...v0.10.6
 [0.10.5]: https://github.com/tredly/tredly-build/compare/v0.10.4...v0.10.5
 [0.10.4]: https://github.com/tredly/tredly-build/compare/v0.10.3...v0.10.4
 [0.10.3]: https://github.com/tredly/tredly-build/compare/v0.10.2...v0.10.3
