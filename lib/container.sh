@@ -1353,15 +1353,16 @@ function container_create() {
                 # trim urlcert down to the last dir name and add partition name so that partitions dont step on each others certs
                 if [[ -n "${_redirectUrlCert}" ]]; then
                     # add the partition and trim out the string until we have the last directory
-                    _redirectUrlCert="${_partitionName}/$(echo "${_redirectUrlCert}" | rev | cut -d '/' -f 1 | rev )"
+                    _redirectUrlCert="$(echo "${_redirectUrlCert}" | rev | cut -d '/' -f 1 | rev )"
                 fi
 
                 # set the url cert as blank if it was set to null
                 if [[ "${_redirectUrlCert}" == 'null' ]]; then
                     _redirectUrlCert=''
                 fi
-
-                nginx_add_redirect_url "${_redirectUrl}" "${_redirectToProto}://${_url}" "${_redirectUrlCert}"
+                
+                # add the redirection
+                nginx_add_redirect_url "${_redirectUrl}" "${_redirectToProto}://${_url}" "${_redirectUrlCert}" "${_partitionName}"
 
                 # register the redirect url within zfs
                 zfs_append_custom_array "${_container_dataset}" "${ZFS_PROP_ROOT}.redirect_url" "${_redirectUrl}"
@@ -1674,6 +1675,7 @@ function destroy_container() {
             _redirectTo=$( rtrim "${_redirectTo}" '/' )
             # format it into a filename
             local _redirectToFile=$( nginx_format_filename "${_redirectTo}" )
+            _redirectToFile=$( lcut "${_redirectToFile}" '$' )
 
             # if the destination file doesnt exist then clean up this definition
             if [[ ! -f "${_nginxServerNameDir}/${_redirectToFile}" ]]; then
